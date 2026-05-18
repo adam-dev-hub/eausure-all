@@ -11,14 +11,18 @@ API dédiée à l’administration web:
 
 - `MONGO_URI`
 - `JWT_SECRET`
-- `PORT` facultatif
-- `CORS_ORIGIN` facultatif
-- `HARDWARE_API_URL` ex: `https://eau-sure-api.vercel.app`
-- `AUTH_API_URL` facultatif
-- `PROFILE_API_URL` facultatif
+- `PORT` 
+- `CORS_ORIGIN` 
+- `HARDWARE_API_URL`
+- `AUTH_API_URL` 
+- `PROFILE_API_URL` 
 - `STATS_MIN_GROUP_SIZE` défaut `5`
 - `STATS_COUNT_ROUNDING` défaut `5`
 - `STATS_PERCENT_ROUNDING` défaut `5`
+
+Base de déploiement actuelle:
+- interface/service: `https://eau-sure-app-admin.vercel.app/`
+- base API à consommer: `https://eau-sure-app-admin.vercel.app/api`
 
 ## Endpoints principaux
 

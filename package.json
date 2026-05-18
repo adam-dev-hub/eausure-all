@@ -9,10 +9,12 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@vercel/blob": "^1.1.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^9.1.5"
+    "mongoose": "^9.1.5",
+    "multer": "^2.0.0"
   }
 }

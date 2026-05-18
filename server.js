@@ -4,6 +4,8 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const multer = require('multer');
+const { put } = require('@vercel/blob');
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -150,6 +152,12 @@ const FirmwareRelease = mongoose.models.FirmwareRelease || mongoose.model('Firmw
 const FirmwareDeployment = mongoose.models.FirmwareDeployment || mongoose.model('FirmwareDeployment', firmwareDeploymentSchema);
 const StatsSnapshot = mongoose.models.StatsSnapshot || mongoose.model('StatsSnapshot', statsSnapshotSchema);
 const Counter = mongoose.models.SupportCounter || mongoose.model('SupportCounter', counterSchema);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 25 * 1024 * 1024,
+  },
+});
 
 function buildTicketId(sequence) {
   return `TKT-${String(sequence).padStart(5, '0')}`;
@@ -167,6 +175,23 @@ function parseObjectId(value) {
 
 function hashSecret(secret) {
   return crypto.createHash('sha256').update(String(secret)).digest('hex');
+}
+
+function hashBufferMd5(buffer) {
+  return crypto.createHash('md5').update(buffer).digest('hex');
+}
+
+function normalizeFilename(value) {
+  return String(value || 'firmware.bin')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function buildBlobPath({ platform, channel, version, filename }) {
+  const safeVersion = normalizeFilename(version);
+  const safeFilename = normalizeFilename(filename);
+  return `firmwares/${platform}/${channel}/${safeVersion}/${Date.now()}-${safeFilename}`;
 }
 
 function sanitizeUser(user) {
@@ -971,6 +996,77 @@ app.get('/api/fuota/releases/:id', authenticate, requireAdmin, async (req, res) 
       updatedAt: new Date(release.updatedAt).toISOString(),
     },
   });
+});
+
+app.post('/api/fuota/releases/upload', authenticate, requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    const platform = pickString(req.body.platform);
+    const version = pickString(req.body.version);
+    const channel = pickString(req.body.channel || 'stable');
+    const notes = pickString(req.body.notes);
+    const status = ['draft', 'active', 'archived'].includes(req.body.status) ? req.body.status : 'active';
+
+    if (!['gateway', 'node'].includes(platform)) {
+      return res.status(400).json({ error: 'Invalid platform' });
+    }
+    if (!version) {
+      return res.status(400).json({ error: 'version is required' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Firmware file is required' });
+    }
+
+    const md5 = hashBufferMd5(req.file.buffer);
+    const size = req.file.size;
+    const filename = req.file.originalname || `${platform}-${version}.bin`;
+    const blobPath = buildBlobPath({
+      platform,
+      channel: ['stable', 'beta', 'canary'].includes(channel) ? channel : 'stable',
+      version,
+      filename,
+    });
+
+    const blob = await put(blobPath, req.file.buffer, {
+      access: 'public',
+      contentType: req.file.mimetype || 'application/octet-stream',
+      addRandomSuffix: false,
+    });
+
+    const release = await FirmwareRelease.create({
+      platform,
+      version,
+      channel: ['stable', 'beta', 'canary'].includes(channel) ? channel : 'stable',
+      url: blob.url,
+      md5,
+      size,
+      notes,
+      filename,
+      status,
+      createdBy: req.auth.user._id,
+      createdByEmail: req.auth.user.email,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Firmware uploaded and release registered',
+      release: {
+        id: String(release._id),
+        platform: release.platform,
+        version: release.version,
+        channel: release.channel,
+        url: release.url,
+        md5: release.md5,
+        size: release.size,
+        status: release.status,
+        notes: release.notes || '',
+        filename: release.filename || '',
+        createdAt: new Date(release.createdAt).toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('[POST /api/fuota/releases/upload]', error);
+    res.status(500).json({ error: 'Failed to upload firmware release' });
+  }
 });
 
 app.post('/api/fuota/releases', authenticate, requireAdmin, async (req, res) => {
