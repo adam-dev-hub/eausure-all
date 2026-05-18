@@ -194,6 +194,24 @@ function buildBlobPath({ platform, channel, version, filename }) {
   return `firmwares/${platform}/${channel}/${safeVersion}/${Date.now()}-${safeFilename}`;
 }
 
+function serializeFirmwareRelease(release) {
+  return {
+    id: String(release._id),
+    platform: release.platform,
+    version: release.version,
+    channel: release.channel,
+    url: release.url,
+    md5: release.md5,
+    size: release.size,
+    notes: release.notes || '',
+    filename: release.filename || '',
+    status: release.status,
+    createdByEmail: release.createdByEmail,
+    createdAt: new Date(release.createdAt).toISOString(),
+    updatedAt: new Date(release.updatedAt).toISOString(),
+  };
+}
+
 function sanitizeUser(user) {
   return {
     id: String(user._id),
@@ -954,21 +972,20 @@ app.get('/api/fuota/releases', authenticate, requireAdmin, async (req, res) => {
 
   const releases = await FirmwareRelease.find(query).sort({ createdAt: -1 });
   res.json({
-    releases: releases.map((release) => ({
-      id: String(release._id),
-      platform: release.platform,
-      version: release.version,
-      channel: release.channel,
-      url: release.url,
-      md5: release.md5,
-      size: release.size,
-      notes: release.notes || '',
-      filename: release.filename || '',
-      status: release.status,
-      createdByEmail: release.createdByEmail,
-      createdAt: new Date(release.createdAt).toISOString(),
-      updatedAt: new Date(release.updatedAt).toISOString(),
-    })),
+    releases: releases.map(serializeFirmwareRelease),
+  });
+});
+
+app.get('/api/fuota/catalog', authenticate, requireActiveUser, async (req, res) => {
+  const platform = pickString(req.query.platform);
+  const channel = pickString(req.query.channel || 'stable');
+  const query = { status: 'active' };
+  if (platform) query.platform = platform;
+  if (channel) query.channel = channel;
+
+  const releases = await FirmwareRelease.find(query).sort({ createdAt: -1 });
+  res.json({
+    releases: releases.map(serializeFirmwareRelease),
   });
 });
 
@@ -980,21 +997,7 @@ app.get('/api/fuota/releases/:id', authenticate, requireAdmin, async (req, res) 
   if (!release) return res.status(404).json({ error: 'Release not found' });
 
   res.json({
-    release: {
-      id: String(release._id),
-      platform: release.platform,
-      version: release.version,
-      channel: release.channel,
-      url: release.url,
-      md5: release.md5,
-      size: release.size,
-      notes: release.notes || '',
-      filename: release.filename || '',
-      status: release.status,
-      createdByEmail: release.createdByEmail,
-      createdAt: new Date(release.createdAt).toISOString(),
-      updatedAt: new Date(release.updatedAt).toISOString(),
-    },
+    release: serializeFirmwareRelease(release),
   });
 });
 
