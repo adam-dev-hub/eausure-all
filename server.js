@@ -978,7 +978,7 @@ app.get('/api/fuota/releases', authenticate, requireAdmin, async (req, res) => {
 
 app.get('/api/fuota/catalog', authenticate, requireActiveUser, async (req, res) => {
   const platform = pickString(req.query.platform);
-  const channel = pickString(req.query.channel || 'stable');
+  const channel = pickString(req.query.channel);
   const query = { status: 'active' };
   if (platform) query.platform = platform;
   if (channel) query.channel = channel;
