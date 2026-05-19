@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const multer = require('multer');
 const { put } = require('@vercel/blob');
+const { extractEsp32FirmwareVersion } = require('./lib/espFirmwareVersion');
+const { prepareFirmwareBinaryForRelease } = require('./lib/firmwareReleaseVersion');
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -1001,10 +1003,54 @@ app.get('/api/fuota/releases/:id', authenticate, requireAdmin, async (req, res) 
   });
 });
 
+app.post('/api/fuota/releases/inspect', authenticate, requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Firmware file is required' });
+    }
+
+    const platform = ['gateway', 'node'].includes(pickString(req.body.platform))
+      ? pickString(req.body.platform)
+      : 'node';
+    const channel = pickString(req.body.channel || 'stable');
+
+    const prepared = await prepareFirmwareBinaryForRelease({
+      buffer: req.file.buffer,
+      platform,
+      channel,
+      filename: req.file.originalname || '',
+      submittedVersion: pickString(req.body.version),
+      FirmwareRelease,
+    });
+
+    const sourceLabels = {
+      binary: 'lue dans le .bin',
+      filename: 'déduite du nom de fichier',
+      'auto-bump': 'incrément automatique (dernière release)',
+      manual: 'saisie administrateur',
+    };
+
+    return res.json({
+      success: true,
+      version: prepared.version,
+      detectedVersion: extractEsp32FirmwareVersion(req.file.buffer),
+      versionSource: prepared.source,
+      willPatchBinary: prepared.patched,
+      md5: hashBufferMd5(prepared.buffer),
+      size: prepared.buffer.length,
+      filename: req.file.originalname || '',
+      hint: `Version catalogue proposée : ${prepared.version} (${sourceLabels[prepared.source] || prepared.source}). Le .bin sera étiqueté automatiquement à la publication.`,
+    });
+  } catch (error) {
+    console.error('[POST /api/fuota/releases/inspect]', error);
+    return res.status(500).json({ error: 'Failed to inspect firmware binary' });
+  }
+});
+
 app.post('/api/fuota/releases/upload', authenticate, requireAdmin, upload.single('file'), async (req, res) => {
   try {
     const platform = pickString(req.body.platform);
-    const version = pickString(req.body.version);
+    let version = pickString(req.body.version);
     const channel = pickString(req.body.channel || 'stable');
     const notes = pickString(req.body.notes);
     const status = ['draft', 'active', 'archived'].includes(req.body.status) ? req.body.status : 'active';
@@ -1012,15 +1058,22 @@ app.post('/api/fuota/releases/upload', authenticate, requireAdmin, upload.single
     if (!['gateway', 'node'].includes(platform)) {
       return res.status(400).json({ error: 'Invalid platform' });
     }
-    if (!version) {
-      return res.status(400).json({ error: 'version is required' });
-    }
     if (!req.file) {
       return res.status(400).json({ error: 'Firmware file is required' });
     }
 
-    const md5 = hashBufferMd5(req.file.buffer);
-    const size = req.file.size;
+    const prepared = await prepareFirmwareBinaryForRelease({
+      buffer: req.file.buffer,
+      platform,
+      channel: ['stable', 'beta', 'canary'].includes(channel) ? channel : 'stable',
+      filename: req.file.originalname || '',
+      submittedVersion: version,
+      FirmwareRelease,
+    });
+
+    version = prepared.version;
+    const md5 = hashBufferMd5(prepared.buffer);
+    const size = prepared.buffer.length;
     const filename = req.file.originalname || `${platform}-${version}.bin`;
     const blobPath = buildBlobPath({
       platform,
@@ -1029,7 +1082,7 @@ app.post('/api/fuota/releases/upload', authenticate, requireAdmin, upload.single
       filename,
     });
 
-    const blob = await put(blobPath, req.file.buffer, {
+    const blob = await put(blobPath, prepared.buffer, {
       access: 'public',
       contentType: req.file.mimetype || 'application/octet-stream',
       addRandomSuffix: false,
@@ -1052,6 +1105,9 @@ app.post('/api/fuota/releases/upload', authenticate, requireAdmin, upload.single
     res.status(201).json({
       success: true,
       message: 'Firmware uploaded and release registered',
+      version,
+      versionSource: prepared.source,
+      binaryPatched: prepared.patched,
       release: {
         id: String(release._id),
         platform: release.platform,
