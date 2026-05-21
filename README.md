@@ -1,26 +1,49 @@
 <div align="center">
-  <table style="border:none; border-collapse:collapse; background:transparent;">
-    <tr>
-      <td valign="middle" style="border:none; background:transparent; padding:0 12px 0 0;">
-        <img src="eausure_official_logo.svg" alt="Logo officiel EauSûre" width="92" />
-      </td>
-      <td valign="middle" style="border:none; background:transparent; padding:0;">
-        <pre style="border:none; background:transparent; margin:0;"><code>███████╗ █████╗ ██╗   ██╗███████╗██╗   ██╗██████╗ ███████╗
+
+<div
+  style="
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  "
+>
+
+<img
+  src="eausure_official_logo.svg"
+  alt="Logo officiel EauSûre"
+  width="92"
+/>
+
+<div
+  style="
+    font-family: monospace;
+    white-space: pre;
+    line-height: 1.15;
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    cursor: default;
+    text-align: left;
+  "
+>
+███████╗ █████╗ ██╗   ██╗███████╗██╗   ██╗██████╗ ███████╗
 ██╔════╝██╔══██╗██║   ██║██╔════╝██║   ██║██╔══██╗██╔════╝
 █████╗  ███████║██║   ██║███████╗██║   ██║██████╔╝█████╗
 ██╔══╝  ██╔══██║██║   ██║╚════██║██║   ██║██╔══██╗██╔══╝
 ███████╗██║  ██║╚██████╔╝███████║╚██████╔╝██║  ██║███████╗
-╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝</code></pre>
-      </td>
-    </tr>
-  </table>
+╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
 </div>
 
-<div align="center">
-  <img src="https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/Express.js-404D59?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
-  <img src="https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" />
-  <img src="https://img.shields.io/badge/Vercel%20Blob-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel Blob" />
+</div>
+
+<br/>
+
+<img src="https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js" />
+<img src="https://img.shields.io/badge/Express.js-404D59?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
+<img src="https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" />
+<img src="https://img.shields.io/badge/Vercel%20Blob-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel Blob" />
+
 </div>
 
 # EauSûre Admin API
