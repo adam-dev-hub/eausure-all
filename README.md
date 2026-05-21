@@ -1,71 +1,89 @@
-# EauSure Admin API
+<div align="center">
+  <img src="eausure_official_logo.svg" alt="Logo officiel EauSûre" width="150" />
+  <img src="https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Express.js-404D59?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
+  <img src="https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/Vercel%20Blob-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel Blob" />
+</div>
 
-API dédiée à l’administration web:
-- support technique: tickets + chat
-- pré-enregistrement des équipements
-- gestion utilisateurs et rôles
-- releases et déploiements FUOTA
-- statistiques agrégées avec garde-fous de confidentialité
+# EauSûre Admin API
+
+API minimale d'administration pour EauSure.
+
+Elle expose ces routes utilisées par `Application_Web` pour :
+- gérer les utilisateurs ;
+- pré-enregistrer les équipements ;
+- inspecter, publier et lister les releases firmware.
+
+## Portée
+
+L'écosystème backend d'EauSûre repose sur une **fragmentation fonctionnelle des APIs**. Chaque service couvre un périmètre précis, mais l'ensemble fonctionne de manière complémentaire :
+- **Admin API** : administration, pré-enregistrement et gestion des releases firmware ;
+- **Hardware API** : opérations techniques liées aux passerelles, nœuds et échanges terrain ;
+- **Profile API** : données de profil et informations liées aux utilisateurs ;
+- **Auth API** : authentification, identité et sécurité d'accès.
+
+Dans cette architecture, `Application_Admin_API` n'a pas vocation à centraliser toute la logique métier. Elle se concentre sur son rôle d'administration :
+- **Utilisateurs** : liste, filtres, mise à jour et note administrateur ;
+- **Pré-enregistrement matériel** : passerelles et nœuds avant déploiement ;
+- **Firmware** : inspection et versionning de l'inventaire `.bin` et publication des releases.
+
+## Stack
+
+- Express
+- MongoDB avec Mongoose sur VM AZUR
+- JWT pour l'authentification
+- Vercel Blob pour le stockage des binaires
+- appel vers `Hardware_API` pour le pré-enregistrement
+
+## Routes exposées
+
+- `GET /api/users`
+- `PATCH /api/users/:id`
+- `POST /api/provisioning/pre-register`
+- `GET /api/provisioning/pre-register`
+- `GET /api/fuota/releases`
+- `POST /api/fuota/releases/inspect`
+- `POST /api/fuota/releases/upload`
 
 ## Variables d'environnement
 
 - `MONGO_URI`
 - `JWT_SECRET`
-- `PORT` 
-- `CORS_ORIGIN` 
+- `PORT`
+- `CORS_ORIGIN`
 - `HARDWARE_API_URL`
-- `AUTH_API_URL` 
-- `PROFILE_API_URL` 
-- `STATS_MIN_GROUP_SIZE` défaut `5`
-- `STATS_COUNT_ROUNDING` défaut `5`
-- `STATS_PERCENT_ROUNDING` défaut `5`
 
-Base de déploiement actuelle:
-- interface/service: `https://eau-sure-app-admin.vercel.app/`
-- base API à consommer: `https://eau-sure-app-admin.vercel.app/api`
+## Fonctionnement
 
-## Endpoints principaux
+### Utilisateurs
 
-- `GET /api/health`
-- `GET /api/users`
-- `PATCH /api/users/:id`
-- `POST /api/provisioning/pre-register`
-- `GET /api/provisioning/pre-register`
-- `GET /api/tickets`
-- `POST /api/tickets`
-- `GET /api/tickets/mine`
-- `PATCH /api/tickets/:id`
-- `DELETE /api/tickets/:id`
-- `POST /api/chat/request`
-- `GET /api/chat/mine`
-- `GET /api/chat/waiting`
-- `GET /api/chat/active`
-- `GET /api/chat/admin`
-- `POST /api/chat/accept`
-- `POST /api/chat/moderate`
-- `POST /api/chat/send`
-- `POST /api/chat/typing`
-- `POST /api/chat/reply`
-- `GET /api/fuota/releases`
-- `POST /api/fuota/releases`
-- `PATCH /api/fuota/releases/:id`
-- `GET /api/fuota/deployments`
-- `POST /api/fuota/deploy`
-- `GET /api/stats/overview`
-- `POST /api/stats/snapshots/collect`
-- `GET /api/stats/snapshots`
+`GET /api/users` supporte la pagination et les filtres `role`, `status` et `search`.
 
-## Confidentialité des statistiques
+`PATCH /api/users/:id` permet de modifier :
+- `role`
+- `status`
+- `adminNotes`
 
-Les stats exposées ici suivent trois règles:
-- pas d'identifiant utilisateur ni de texte brut de support dans les agrégats
-- masquage des groupes avec cardinalité `< STATS_MIN_GROUP_SIZE`
-- arrondi des comptes et pourcentages pour réduire la ré-identification
+### Pré-enregistrement
 
-## Lancement local
+`POST /api/provisioning/pre-register` :
+- valide `kind` (`gateway` ou `node`) ;
+- vérifie la longueur du `deviceSecret` ;
+- stocke un hash SHA-256 du secret ;
+- transmet ensuite la demande à `Hardware_API`.
 
-```bash
-cd Application_Admin_API
-npm install
-npm run dev
-```
+### Firmware
+
+`POST /api/fuota/releases/inspect` :
+- lit le binaire ;
+- tente de détecter la version ;
+- propose un auto-incrément si nécessaire ;
+- retourne le `md5`, la taille et l'origine de la version retenue.
+
+`POST /api/fuota/releases/upload` :
+- prépare le binaire ;
+- publie le fichier dans `Vercel Blob`;
+- enregistre la release en base.
+
+
