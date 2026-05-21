@@ -1,11 +1,11 @@
 <div align="center">
-  <table>
+  <table style="border:none; border-collapse:collapse; background:transparent;">
     <tr>
-      <td valign="middle">
+      <td valign="middle" style="border:none; background:transparent; padding:0 12px 0 0;">
         <img src="eausure_official_logo.svg" alt="Logo officiel EauSûre" width="92" />
       </td>
-      <td valign="middle">
-        <pre><code>███████╗ █████╗ ██╗   ██╗███████╗██╗   ██╗██████╗ ███████╗
+      <td valign="middle" style="border:none; background:transparent; padding:0;">
+        <pre style="border:none; background:transparent; margin:0;"><code>███████╗ █████╗ ██╗   ██╗███████╗██╗   ██╗██████╗ ███████╗
 ██╔════╝██╔══██╗██║   ██║██╔════╝██║   ██║██╔══██╗██╔════╝
 █████╗  ███████║██║   ██║███████╗██║   ██║██████╔╝█████╗
 ██╔══╝  ██╔══██║██║   ██║╚════██║██║   ██║██╔══██╗██╔══╝
