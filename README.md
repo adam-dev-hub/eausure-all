@@ -1,41 +1,9 @@
 <div align="center">
 
-<div
-  style="
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 18px;
-  "
->
-
 <img
-  src="eausure_official_logo.svg"
+  src="eausure_header.svg"
   alt="Logo officiel EauSûre"
-  width="92"
 />
-
-<div
-  style="
-    font-family: monospace;
-    white-space: pre;
-    line-height: 1.15;
-    user-select: none;
-    -webkit-user-select: none;
-    -ms-user-select: none;
-    cursor: default;
-    text-align: left;
-  "
->
-███████╗ █████╗ ██╗   ██╗███████╗██╗   ██╗██████╗ ███████╗
-██╔════╝██╔══██╗██║   ██║██╔════╝██║   ██║██╔══██╗██╔════╝
-█████╗  ███████║██║   ██║███████╗██║   ██║██████╔╝█████╗
-██╔══╝  ██╔══██║██║   ██║╚════██║██║   ██║██╔══██╗██╔══╝
-███████╗██║  ██║╚██████╔╝███████║╚██████╔╝██║  ██║███████╗
-╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
-</div>
-
-</div>
 
 <br/>
 
