@@ -12,7 +12,7 @@ export const SLIDES = [
     key: "quality",
     title: "Water quality, in real time.",
     subhead: "pH - TDS - Turbidity - Temperature",
-    description: "Spot contamination early with continuous sampling and clean dashboards. Get clear, actionable readings—not raw noise.",
+    description: "Spot contamination early with continuous sampling and clean dashboards. Get clear, actionable readings-not raw noise.",
     videoUri: require('../assets/videos/videausure-2_nobars.mp4'),
     fallbackImage: require('../assets/videos/first_frame-2.jpg'),
   },

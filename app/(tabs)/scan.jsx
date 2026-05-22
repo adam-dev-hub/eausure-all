@@ -1,294 +1,717 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { QrCode, ScanLine, Radio, Zap } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
+} from 'react-native';
 
-export default function ScanLandingPage() {
-  const router = useRouter();
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
+import {
+  Radio,
+  Shield,
+  ScanLine,
+  Lock,
+  CheckCircle2,
+  Router,
+  Eye,
+  EyeOff,
+  Sparkles,
+  RefreshCw,
+  AlertCircle,
+} from 'lucide-react-native';
+
+import BleProvisioningHero from '../../components/BleProvisioningHero';
+import GatewayProvisioningForm from '../../components/GatewayProvisioningForm';
+import NodePairingModal from '../../components/NodePairingModal';
+import {
+  startGatewayScan,
+  provisionGatewayOverBle,
+} from '../../api/provisioningService';
+import { scanNearbyWifiNetworks } from '../../api/wifiScanner';
+import { getUserGateways, updateGatewayLocation } from '../../api/pairingClient';
+
+const RECENT_SSIDS_KEY = 'gateway_recent_ssids_v1';
+
+async function loadRecentSsids() {
+  const raw = await AsyncStorage.getItem(RECENT_SSIDS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string' && item.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveRecentSsid(ssid) {
+  const clean = ssid.trim();
+  if (!clean) return;
+
+  const existing = await loadRecentSsids();
+  const next = [clean, ...existing.filter((item) => item !== clean)].slice(0, 5);
+  await AsyncStorage.setItem(RECENT_SSIDS_KEY, JSON.stringify(next));
+}
+
+function getSignalColor(rssi) {
+  if (rssi >= -60) return '#22c55e'; // Green
+  if (rssi >= -70) return '#f59e0b'; // Amber/Yellow
+  return '#ef4444'; // Red
+}
+
+export default function GatewayProvisioningScreen() {
+  const scanStopRef = useRef(null);
+  const scanEndTimerRef = useRef(null);
+  const scanProgress = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef(null);
+  const provisioningLockRef = useRef(false);
+  const wizardLayoutY = useRef(0);
+
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [discoveredGateways, setDiscoveredGateways] = useState([]);
+  const [selectedGateway, setSelectedGateway] = useState(null);
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
+  const [gatewayName, setGatewayName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [recentSsids, setRecentSsids] = useState([]);
+  const [isWifiScanning, setIsWifiScanning] = useState(false);
+  const [wifiNetworks, setWifiNetworks] = useState([]);
+  const [hasScannedOnce, setHasScannedOnce] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(null);
+  const [pairingModalVisible, setPairingModalVisible] = useState(false);
+
+  const canSubmit = !!selectedGateway && !!wifiSsid.trim() && !!wifiPassword.trim() && !isProvisioning;
+  const helperStatus = useMemo(() => {
+    if (isProvisioning) return 'Transmission chiffrée vers la passerelle...';
+    if (isSeeking) return 'Recherche BLE active pendant 12 secondes.';
+    if (selectedGateway) return `Passerelle prête : ${selectedGateway.gatewayHardwareId}`;
+    if (discoveredGateways.length > 0) return 'Sélectionnez une passerelle pour continuer.';
+    return 'Lancez un scan pour détecter les passerelles GW-* à proximité.';
+  }, [discoveredGateways.length, isProvisioning, isSeeking, selectedGateway]);
+
+  useEffect(() => {
+    loadRecentSsids().then(setRecentSsids).catch(() => {});
+    return () => {
+      if (scanEndTimerRef.current) clearTimeout(scanEndTimerRef.current);
+      if (scanStopRef.current) scanStopRef.current();
+    };
+  }, []);
+
+  // Reset the full screen state when user leaves this tab
+  useFocusEffect(
+    useCallback(() => {
+      // onBlur cleanup
+      return () => {
+        if (scanStopRef.current) {
+          scanStopRef.current();
+          scanStopRef.current = null;
+        }
+        if (scanEndTimerRef.current) {
+          clearTimeout(scanEndTimerRef.current);
+          scanEndTimerRef.current = null;
+        }
+        scanProgress.stopAnimation();
+        scanProgress.setValue(0);
+        provisioningLockRef.current = false;
+
+        setIsSeeking(false);
+        setIsProvisioning(false);
+        setDiscoveredGateways([]);
+        setSelectedGateway(null);
+        setWifiSsid('');
+        setWifiPassword('');
+        setGatewayName('');
+        setShowPassword(false);
+        setWifiNetworks([]);
+        setIsWifiScanning(false);
+        setHasScannedOnce(false);
+        setError('');
+        setSuccess(null);
+        setPairingModalVisible(false);
+      };
+    }, [])
+  );
+
+  const animateLayout = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  };
+
+  const upsertGateway = (gateway) => {
+    setDiscoveredGateways((prev) => {
+      if (prev.length === 0) animateLayout(); // animate form appearance
+      const next = [...prev];
+      const idx = next.findIndex((item) => item.id === gateway.id);
+      if (idx >= 0) next[idx] = gateway;
+      else next.push(gateway);
+      next.sort((a, b) => b.rssi - a.rssi);
+      return next;
+    });
+
+    setSelectedGateway((prev) => {
+      if (!prev) {
+        // First gateway found — stop the scan, no need to keep scanning
+        if (scanStopRef.current) scanStopRef.current();
+        if (scanEndTimerRef.current) clearTimeout(scanEndTimerRef.current);
+        scanProgress.stopAnimation();
+        scanProgress.setValue(0);
+        animateLayout();
+        setIsSeeking(false);
+      }
+      return prev || gateway;
+    });
+    setGatewayName((prev) => prev || gateway.gatewayName || `Passerelle ${gateway.gatewayHardwareId.slice(-4)}`);
+  };
+
+  const handleStartScan = async () => {
+    setError('');
+    setSuccess(null);
+    setDiscoveredGateways([]);
+    setSelectedGateway(null);
+
+    if (scanStopRef.current) scanStopRef.current();
+    if (scanEndTimerRef.current) clearTimeout(scanEndTimerRef.current);
+
+    animateLayout(); // animate text/button changes
+    setIsSeeking(true);
+    setHasScannedOnce(true);
+    scanProgress.setValue(0);
+    Animated.timing(scanProgress, {
+      toValue: 100,
+      duration: 12000,
+      useNativeDriver: false,
+    }).start();
+    try {
+      scanStopRef.current = await startGatewayScan({
+        onGateway: upsertGateway,
+        onError: (message) => {
+          animateLayout();
+          setError(message);
+          setIsSeeking(false);
+        },
+        scanDurationMs: 12000,
+      });
+
+      scanEndTimerRef.current = setTimeout(() => {
+        animateLayout();
+        setIsSeeking(false);
+        scanProgress.stopAnimation();
+        scanProgress.setValue(0);
+      }, 12400);
+    } catch (e) {
+      animateLayout();
+      setError(e.message || 'Impossible de lancer le scan BLE.');
+      setIsSeeking(false);
+    }
+  };
+
+  const handleStopScan = () => {
+    if (scanStopRef.current) scanStopRef.current();
+    if (scanEndTimerRef.current) clearTimeout(scanEndTimerRef.current);
+    scanProgress.stopAnimation();
+    scanProgress.setValue(0);
+    animateLayout();
+    setIsSeeking(false);
+  };
+
+  const handleProvision = async () => {
+    if (provisioningLockRef.current) {
+      return;
+    }
+
+    provisioningLockRef.current = true;
+    setError('');
+    setSuccess(null);
+
+    if (!selectedGateway) {
+      animateLayout();
+      setError('Aucune passerelle sélectionnée.');
+      provisioningLockRef.current = false;
+      return;
+    }
+
+    if (!wifiSsid.trim() || !wifiPassword.trim()) {
+      animateLayout();
+      setError('SSID et mot de passe WiFi sont obligatoires.');
+      provisioningLockRef.current = false;
+      return;
+    }
+
+    setIsProvisioning(true);
+    try {
+      const ack = await provisionGatewayOverBle({
+        deviceId: selectedGateway.id,
+        gatewayHardwareId: selectedGateway.gatewayHardwareId,
+        ssid: wifiSsid,
+        password: wifiPassword,
+        gatewayName,
+      });
+
+      await saveRecentSsid(wifiSsid);
+      setRecentSsids(await loadRecentSsids());
+
+      // Capture phone GPS and push location to backend (best-effort, non-blocking)
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 5000,
+          });
+          if (pos?.coords && selectedGateway?.gatewayHardwareId) {
+            // Reverse geocode to get city/country names
+            let city = '';
+            let country = '';
+            try {
+              const [place] = await Location.reverseGeocodeAsync({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+              });
+              if (place) {
+                city = place.city || place.subregion || place.region || '';
+                country = place.isoCountryCode || place.country || '';
+              }
+            } catch {
+              // reverse geocode is best-effort
+            }
+
+            const gwsRes = await getUserGateways();
+            if (gwsRes?.success && Array.isArray(gwsRes.data)) {
+              const match = gwsRes.data.find(
+                (gw) => gw.gatewayId === selectedGateway.gatewayHardwareId
+              );
+              if (match?._id) {
+                await updateGatewayLocation(match._id, {
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  city,
+                  country,
+                });
+                console.log('[Provisioning][GPS] Location pushed to backend', {
+                  gatewayId: match.gatewayId,
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  city,
+                  country,
+                });
+              }
+            }
+          }
+        }
+      } catch (gpsErr) {
+        // GPS is best-effort — provisioning already succeeded, don't fail the flow
+        console.log('[Provisioning][GPS][WARN]', gpsErr?.message || 'GPS unavailable');
+      }
+
+      animateLayout();
+      setSuccess({ ack });
+    } catch (e) {
+      animateLayout();
+      setError(e.message || 'Provisioning BLE échoué.');
+    } finally {
+      provisioningLockRef.current = false;
+      setIsProvisioning(false);
+    }
+  };
+
+  const handleScanWifi = async () => {
+    setError('');
+    setIsWifiScanning(true);
+    try {
+      const networks = await scanNearbyWifiNetworks();
+      setWifiNetworks(networks);
+      if (networks.length === 0) {
+        animateLayout();
+        setError('Aucun réseau Wi‑Fi visible. Vérifiez que le Wi‑Fi du téléphone est actif et que la localisation Android est autorisée.');
+      }
+    } catch (e) {
+      animateLayout();
+      setError(e.message || 'Impossible de scanner les réseaux Wi‑Fi.');
+    } finally {
+      setIsWifiScanning(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Ajouter une bouée</Text>
-        <Text style={styles.subtitle}>
-          Connectez une nouvelle bouée IoT à votre système de surveillance
-        </Text>
-      </View>
-
-      <View style={styles.content}>
-        {/* Main Icon Container */}
-        <View style={styles.iconWrapper}>
-          <LinearGradient
-            colors={['#e0f2fe', '#dbeafe']}
-            style={styles.iconContainer}
-          >
-            <View style={styles.iconInner}>
-              <QrCode size={64} color="#0ea5e9" strokeWidth={2} />
-              <View style={styles.scanLineWrapper}>
-                <ScanLine size={80} color="#2563eb" style={styles.scanLine} />
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-
-        {/* Instructions */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructionTitle}>Comment ça marche ?</Text>
-          
-          <View style={styles.stepsList}>
-            <View style={styles.step}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>1</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Préparez la bouée</Text>
-                <Text style={styles.stepText}>
-                  Assurez-vous que la bouée est allumée et à portée
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.step}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>2</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Scannez le QR code</Text>
-                <Text style={styles.stepText}>
-                  Trouvez le code QR sur votre appareil ESP32-S3
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.step}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>3</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Configuration automatique</Text>
-                <Text style={styles.stepText}>
-                  La bouée sera configurée via LoRaWAN
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Features */}
-        <View style={styles.features}>
-          <View style={styles.feature}>
-            <View style={styles.featureIcon}>
-              <Radio size={18} color="#22c55e" />
-            </View>
-            <Text style={styles.featureText}>LoRaWAN</Text>
-          </View>
-          <View style={styles.feature}>
-            <View style={styles.featureIcon}>
-              <Zap size={18} color="#f59e0b" />
-            </View>
-            <Text style={styles.featureText}>Autonome 8-10 ans</Text>
-          </View>
-        </View>
-
-        {/* CTA Button */}
-        <Pressable 
-          style={({ pressed }) => [
-            styles.scanButton,
-            pressed && styles.scanButtonPressed
-          ]} 
-          onPress={() => router.push('/scanner')}
+      <KeyboardAvoidingView
+        style={styles.keyboardWrap}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 16 : 0}
+      >
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <LinearGradient
+          colors={['#ffffff', '#f8fbff']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerCard}
         >
-          <LinearGradient
-            colors={['#0ea5e9', '#2563eb']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.scanButtonGradient}
+          <View style={styles.headerIcon}>
+            <ScanLine size={22} color="#0b7fd3" />
+          </View>
+          <View style={styles.headerCopy}>
+            <Text style={styles.headerEyebrow}>Scanner</Text>
+            <Text style={styles.title}>Provisioning passerelle</Text>
+            <Text style={styles.subtitle}>
+              Scannez une passerelle, choisissez le Wi-Fi, puis envoyez la configuration de façon sécurisée.
+            </Text>
+          </View>
+        </LinearGradient>
+
+        <LinearGradient
+          colors={['#ffffff', '#f8fbff']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
+        >
+          <BleProvisioningHero
+            active={isSeeking}
+            targetCount={discoveredGateways.length}
+            selectedGateway={selectedGateway}
+            helperStatus={helperStatus}
+            isProvisioning={isProvisioning}
+            provisioned={!!success}
+          />
+
+          <Pressable
+            disabled={isProvisioning}
+            style={({ pressed }) => [styles.primaryButton, styles.heroAction, pressed && styles.buttonPressed]}
+            onPress={isSeeking ? handleStopScan : handleStartScan}
           >
-            <ScanLine size={24} color="#fff" />
-            <Text style={styles.scanButtonText}>Lancer le scan</Text>
-          </LinearGradient>
-        </Pressable>
-      </View>
+            {({ pressed }) => (
+              <View style={styles.primaryButtonContainer}>
+                <LinearGradient
+                  colors={pressed ? ['#0284c7', '#1d4ed8'] : ['#0ea5e9', '#2563eb']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                
+                {isSeeking && (
+                  <Animated.View
+                    style={[
+                      StyleSheet.absoluteFill,
+                      {
+                        width: scanProgress.interpolate({
+                          inputRange: [0, 100],
+                          outputRange: ['0%', '100%'],
+                        }),
+                        backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                      },
+                    ]}
+                  />
+                )}
+                
+                <View style={styles.primaryButtonContent}>
+                  <Radio size={18} color="#fff" />
+                  <Text style={styles.primaryButtonText}>
+                    {isSeeking ? 'Arrêter le scan BLE' : hasScannedOnce ? 'Relancer le scan BLE' : 'Lancer le scan BLE'}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        </LinearGradient>
+
+        {!success ? (
+          <View onLayout={(e) => { wizardLayoutY.current = e.nativeEvent.layout.y; }}>
+            <GatewayProvisioningForm
+              discoveredGateways={discoveredGateways}
+              setSelectedGateway={setSelectedGateway}
+              selectedGateway={selectedGateway}
+              gatewayName={gatewayName}
+              setGatewayName={setGatewayName}
+              wifiSsid={wifiSsid}
+              setWifiSsid={setWifiSsid}
+              wifiPassword={wifiPassword}
+              setWifiPassword={setWifiPassword}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              isProvisioning={isProvisioning}
+              canSubmit={canSubmit}
+              handleProvision={handleProvision}
+              handleScanWifi={handleScanWifi}
+              isWifiScanning={isWifiScanning}
+              wifiNetworks={wifiNetworks}
+              recentSsids={recentSsids}
+              getSignalColor={getSignalColor}
+              onStepChange={() => {
+                if (scrollViewRef.current) {
+                  setTimeout(() => {
+                    scrollViewRef.current.scrollToEnd({ animated: true });
+                  }, 50);
+                }
+              }}
+            />
+          </View>
+        ) : null}
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <AlertCircle size={24} color="#ef4444" />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+
+        {success ? (
+          <View style={styles.successBox}>
+            <View style={styles.successHeader}>
+              <CheckCircle2 size={24} color="#10b981" />
+              <Text style={styles.successTitle}>Provisioning BLE terminé</Text>
+            </View>
+            <Text style={styles.successText}>
+              La passerelle a reçu les credentials WiFi + token. Elle va redémarrer puis effectuer son provisioning cloud.
+            </Text>
+
+            <Pressable style={styles.nextButton} onPress={() => setPairingModalVisible(true)}>
+              <ScanLine size={18} color="#0ea5e9" />
+              <Text style={styles.nextButtonText}>Associer une bouée</Text>
+            </Pressable>
+
+            <Pressable 
+              style={[styles.nextButton, { backgroundColor: '#f1f5f9', marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0' }]} 
+              onPress={() => {
+                animateLayout();
+                setSuccess(null);
+                setError('');
+                setSelectedGateway(null);
+                setDiscoveredGateways([]);
+                setGatewayName('');
+                setWifiSsid('');
+                setWifiPassword('');
+                setHasScannedOnce(false);
+                setIsSeeking(false);
+              }}
+            >
+              <RefreshCw size={18} color="#475569" />
+              <Text style={[styles.nextButtonText, { color: '#475569' }]}>Nouvelle passerelle</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </ScrollView>
+      </KeyboardAvoidingView>
+      <NodePairingModal
+        visible={pairingModalVisible}
+        onClose={() => setPairingModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: 'Ubuntu_700Bold',
-    color: '#0f172a',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#64748b',
-    fontFamily: 'Ubuntu_400Regular',
-    lineHeight: 22,
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-    paddingBottom: 100,
-  },
-  iconWrapper: {
-    marginBottom: 40,
-  },
-  iconContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0ea5e9',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  iconInner: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scanLineWrapper: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scanLine: {
-    opacity: 0.3,
-  },
-  
-  instructionsContainer: {
-    width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  instructionTitle: {
-    fontSize: 18,
-    fontFamily: 'Ubuntu_700Bold',
-    color: '#0f172a',
-    marginBottom: 16,
-  },
-  stepsList: {
-    gap: 16,
-  },
-  step: {
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  keyboardWrap: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 110 },
+  headerCard: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 14,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 16,
+    marginTop: 10,
+    marginBottom: 14,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  stepNumber: {
-    width: 32,
-    height: 32,
+  headerIcon: {
+    width: 48,
+    height: 48,
     borderRadius: 16,
     backgroundColor: '#e0f2fe',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepNumberText: {
-    fontSize: 14,
-    fontFamily: 'Ubuntu_700Bold',
-    color: '#0ea5e9',
-  },
-  stepContent: {
+  headerCopy: {
     flex: 1,
+    minWidth: 0,
   },
-  stepTitle: {
-    fontSize: 15,
-    fontFamily: 'Ubuntu_500Medium',
+  headerEyebrow: {
+    fontSize: 12,
+    color: '#0b7fd3',
+    fontFamily: 'Ubuntu_700Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 24,
+    lineHeight: 29,
+    fontFamily: 'Ubuntu_700Bold',
     color: '#0f172a',
-    marginBottom: 2,
+    marginBottom: 6,
   },
-  stepText: {
-    fontSize: 13,
-    fontFamily: 'Ubuntu_400Regular',
+  subtitle: {
+    fontSize: 14,
+    lineHeight: 20,
     color: '#64748b',
-    lineHeight: 18,
+    fontFamily: 'Ubuntu_400Regular',
   },
-  
-  features: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 32,
-  },
-  feature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+  heroCard: {
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14,
     shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  featureIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#f8fafc',
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroAction: {
+    marginTop: 22,
   },
-  featureText: {
-    fontSize: 13,
-    fontFamily: 'Ubuntu_500Medium',
-    color: '#475569',
-  },
-  
-  scanButton: {
-    width: '100%',
-    borderRadius: 20,
+  primaryButton: {
+    borderRadius: 999,
     overflow: 'hidden',
     shadowColor: '#2563eb',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.22,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: 7,
   },
-  scanButtonPressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.9,
+  provisionButton: {
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginTop: 14,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  scanButtonGradient: {
+  primaryButtonGradient: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 48,
+    gap: 10,
+    paddingHorizontal: 18,
   },
-  scanButtonText: {
-    fontSize: 17,
-    fontFamily: 'Ubuntu_700Bold',
+  primaryButtonContainer: {
+    minHeight: 56,
+    width: '100%',
+    borderRadius: 999,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  primaryButtonContent: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 18,
+    zIndex: 10,
+  },
+  primaryButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Ubuntu_700Bold',
+  },
+  buttonPressed: {
+    transform: [{ scale: 0.99 }],
+    opacity: 0.94,
+  },
+  buttonDisabled: {
+    opacity: 0.72,
+  },
+  errorBox: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  errorText: {
+    flex: 1,
+    color: '#b91c1c',
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'Ubuntu_500Medium',
+  },
+  successBox: {
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 14,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  successHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  successTitle: {
+    fontSize: 18,
+    color: '#065f46',
+    fontFamily: 'Ubuntu_700Bold',
+  },
+  successText: {
+    fontSize: 14,
+    color: '#065f46',
+    lineHeight: 20,
+    fontFamily: 'Ubuntu_500Medium',
+  },
+  nextButton: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#7dd3fc',
+    backgroundColor: '#fff',
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  nextButtonText: {
+    color: '#0369a1',
+    fontSize: 14,
+    fontFamily: 'Ubuntu_700Bold',
   },
 });

@@ -1,0 +1,252 @@
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-native';
+import LottieView from 'lottie-react-native';
+import { BluetoothSearching, CheckCircle2, Router } from 'lucide-react-native';
+
+const bleAnimation       = require('../assets/lottie/ble-connection.json');
+const connectedAnimation = require('../assets/lottie/Connected.json');
+
+// ── FadeSlide ─────────────────────────────────────────────────────────────────
+function FadeSlide({ children, style }) {
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(6)).current;
+
+  useEffect(() => {
+    opacity.setValue(0);
+    translateY.setValue(6);
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 280, useNativeDriver: true }),
+    ]).start();
+  }, [children]);
+
+  return (
+    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+// ── PulseLottie — plays once, then replays every intervalMs ───────────────────
+function PulseLottie({ source, style, intervalMs = 4000 }) {
+  const ref      = useRef(null);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    const schedule = () => {
+      timerRef.current = setTimeout(() => {
+        ref.current?.play();
+        schedule();
+      }, intervalMs);
+    };
+    ref.current?.play();
+    schedule();
+    return () => clearTimeout(timerRef.current);
+  }, [intervalMs]);
+
+  return (
+    <LottieView
+      ref={ref}
+      source={source}
+      autoPlay={false}
+      loop={false}
+      style={style}
+    />
+  );
+}
+
+// ── BleProvisioningHero ───────────────────────────────────────────────────────
+export default function BleProvisioningHero({
+  active = false,
+  targetCount = 0,
+  selectedGateway = null,
+  helperStatus = '',
+  isProvisioning = false,
+  provisioned = false,
+}) {
+  const stateLabel = provisioned
+    ? 'Configurée'
+    : isProvisioning
+      ? 'Transmission'
+      : active
+        ? 'Recherche'
+        : selectedGateway
+          ? 'Connectable'
+          : 'Prêt';
+
+  const titleText = provisioned
+    ? 'Passerelle configurée'
+    : isProvisioning
+      ? 'Configuration en cours'
+      : active
+        ? 'Recherche des passerelles'
+        : selectedGateway
+          ? selectedGateway.gatewayHardwareId
+          : 'Prêt à scanner';
+
+  // Lottie speed crossfade via opacity
+  const lottieOpacity = useRef(new Animated.Value(1)).current;
+  const prevSpeedRef  = useRef(null);
+  const speed = active || isProvisioning ? 1.15 : 0.72;
+
+  useEffect(() => {
+    if (prevSpeedRef.current !== null && prevSpeedRef.current !== speed) {
+      Animated.sequence([
+        Animated.timing(lottieOpacity, { toValue: 0.3, duration: 150, useNativeDriver: true }),
+        Animated.timing(lottieOpacity, { toValue: 1,   duration: 200, useNativeDriver: true }),
+      ]).start();
+    }
+    prevSpeedRef.current = speed;
+  }, [speed]);
+
+  return (
+    <View style={styles.shell}>
+      {/* Top row */}
+      <View style={styles.topRow}>
+        <View style={styles.kickerRow}>
+          <View style={[styles.statusDot, active && styles.statusDotActive]} />
+          <Text style={styles.kicker}>Provisioning BLE</Text>
+        </View>
+        <View style={[styles.badge, provisioned && styles.badgeSuccess]}>
+          {active || isProvisioning
+            ? <ActivityIndicator size="small" color="#0ea5e9" />
+            : provisioned
+              ? <CheckCircle2 size={14} color="#10b981" />
+              : <BluetoothSearching size={14} color="#0ea5e9" />
+          }
+          <FadeSlide key={stateLabel}>
+            <Text style={[styles.badgeText, provisioned && { color: '#059669' }]}>
+              {stateLabel}
+            </Text>
+          </FadeSlide>
+        </View>
+      </View>
+
+      {/* Content row */}
+      <View style={styles.contentRow}>
+        <View style={styles.copyBlock}>
+          <FadeSlide key={titleText}>
+            <Text style={styles.title}>{titleText}</Text>
+          </FadeSlide>
+          <FadeSlide key={helperStatus}>
+            <Text style={styles.description}>{helperStatus}</Text>
+          </FadeSlide>
+
+          <View style={styles.metaRow}>
+            <View style={styles.metaPill}>
+              <Router size={13} color="#0ea5e9" />
+              <Text style={styles.metaText}>{targetCount} détectée(s)</Text>
+            </View>
+            {selectedGateway && !provisioned ? (
+              <FadeSlide key="selected-pill">
+                <View style={styles.metaPill}>
+                  <CheckCircle2 size={13} color="#86efac" />
+                  <Text style={styles.metaText}>Sélectionnée</Text>
+                </View>
+              </FadeSlide>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Animation plate */}
+        <View style={styles.animationPlate}>
+          <View style={[styles.lottieHalo, provisioned && styles.lottieHaloBig]}>
+            {provisioned ? (
+              <FadeSlide key="provisioned-connected">
+                <PulseLottie
+                  source={connectedAnimation}
+                  style={styles.lottieSmall}
+                  intervalMs={4000}
+                />
+              </FadeSlide>
+            ) : (
+              <Animated.View style={{ opacity: lottieOpacity }}>
+                <LottieView
+                  source={bleAnimation}
+                  autoPlay
+                  loop
+                  style={styles.lottie}
+                  speed={speed}
+                />
+              </Animated.View>
+            )}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  shell: { gap: 22 },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#94a3b8' },
+  statusDotActive: {
+    backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+  },
+  kicker: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontFamily: 'Ubuntu_700Bold',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  badge: {
+    height: 30,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  badgeSuccess: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
+  badgeText: { color: '#0b7fd3', fontSize: 12, fontFamily: 'Ubuntu_700Bold' },
+
+  contentRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  copyBlock: { flex: 1, minWidth: 0 },
+  animationPlate: { width: 116, height: 116, alignItems: 'center', justifyContent: 'center' },
+  lottieHalo: {
+    width: 106,
+    height: 106,
+    borderRadius: 53,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  lottie:      { width: 118, height: 118 },
+  lottieSmall: { width: 167, height: 167 },
+
+  title: {
+    color: '#0f172a',
+    fontSize: 24,
+    lineHeight: 29,
+    fontFamily: 'Ubuntu_700Bold',
+    marginBottom: 9,
+  },
+  description: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: 'Ubuntu_400Regular',
+  },
+  metaRow: { marginTop: 16, flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  metaPill: {
+    height: 30,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  metaText: { color: '#334155', fontSize: 12, fontFamily: 'Ubuntu_700Bold' },
+});

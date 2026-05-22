@@ -5,11 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "eausureapp",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0f172a",
       "userInterfaceStyle": "dark"
@@ -19,13 +19,16 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#0f172a"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.CAMERA"
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_STATE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.NEARBY_WIFI_DEVICES"
       ],
       "package": "com.farjeouiadam.eausure_app"
     },
@@ -37,7 +40,8 @@
       "expo-router",
       "expo-font",
       "expo-video",
-      "expo-web-browser"
+      "expo-web-browser",
+      "react-native-ble-plx"
     ]
   }
 }

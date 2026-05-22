@@ -98,13 +98,17 @@ function RootLayoutNav() {
   );
 }
 
+import { MqttProvider } from '../context/MqttContext';
+
 export default function RootLayout() {
   return (
     <AuthProvider>
       <ProfileProvider>
-      <OnboardingProvider>
-        <RootLayoutNav />
-      </OnboardingProvider>
+        <MqttProvider>
+          <OnboardingProvider>
+            <RootLayoutNav />
+          </OnboardingProvider>
+        </MqttProvider>
       </ProfileProvider>
     </AuthProvider>
   );

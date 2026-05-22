@@ -1,47 +1,58 @@
 import { Tabs } from 'expo-router';
-import { View, Platform } from 'react-native';
-import { Home, Scan, Settings } from 'lucide-react-native';
+import { View, Text, Platform, StyleSheet } from 'react-native';
+import { Activity, Gauge, Home, Scan, Settings } from 'lucide-react-native';
 
-// Couleurs centralisées pour une maintenance facile
 const COLORS = {
   primary: '#0ea5e9',
-  inactive: '#94a3b8',
-  bg: '#f8fafc',
+  primaryDark: '#0369a1',
+  inactive: '#64748b',
+  surface: '#ffffff',
+  shadow: '#0f172a',
 };
 
-export default function TabLayout() {
+function StandardTabIcon({ Icon, label, color, focused }) {
+  return (
+    <View style={styles.standardItem}>
+      <Icon size={21} color={focused ? COLORS.primaryDark : color} strokeWidth={focused ? 2.6 : 2.1} />
+      <Text style={[styles.standardLabel, focused && styles.standardLabelActive]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
+
+
+export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: {
-          fontFamily: 'Ubuntu_500Medium',
-          fontSize: 11,
-          marginTop: -4,
-          marginBottom: Platform.OS === 'ios' ? 0 : 4,
-        },
+        tabBarShowLabel: false,
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.inactive,
         tabBarStyle: {
           position: 'absolute',
+          left: 0,
+          right: 0,
           bottom: 0,
-          left: 16,
-          right: 16,
-          elevation: 8,
-          backgroundColor: '#ffffff',
-          borderRadius: 24,
-          height: Platform.OS === 'ios' ? 80 : 70,
-          borderTopWidth: 0,
-          shadowColor: '#0f172a',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-          paddingBottom: Platform.OS === 'android' ? 8 : 20,
+          height: Platform.OS === 'ios' ? 86 : 78,
+          paddingTop: 11,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+          paddingHorizontal: 14,
+          backgroundColor: COLORS.surface,
+          borderTopWidth: 1,
+          borderColor: '#e2e8f0',
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          elevation: 18,
+          shadowColor: COLORS.shadow,
+          shadowOffset: { width: 0, height: -8 },
+          shadowOpacity: 0.08,
+          shadowRadius: 18,
+        },
+        tabBarItemStyle: {
+          height: 54,
         },
       }}
     >
@@ -49,81 +60,57 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Accueil',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              top: 2,
-            }}>
-              <Home size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
-              {focused && (
-                <View style={{
-                  width: 4,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: color,
-                  marginTop: 4,
-                  position: 'absolute',
-                  bottom: -14,
-                }} />
-              )}
-            </View>
-          ),
+          tabBarIcon: ({ color, focused }) => <StandardTabIcon Icon={Home} label="Accueil" color={color} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="telemetry"
+        options={{
+          title: 'Télémétrie',
+          tabBarIcon: ({ color, focused }) => <StandardTabIcon Icon={Activity} label="Télém." color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="scan"
         options={{
           title: 'Scanner',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              top: Platform.OS === 'ios' ? -28 : -32,
-              width: 64,
-              height: 64,
-              borderRadius: 32,
-              backgroundColor: COLORS.primary,
-              justifyContent: 'center',
-              alignItems: 'center',
-              shadowColor: COLORS.primary,
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.4,
-              shadowRadius: 12,
-              elevation: 12,
-              borderWidth: 4,
-              borderColor: '#ffffff',
-            }}>
-              <Scan size={28} color="#fff" strokeWidth={2.5} />
-            </View>
-          ),
-          tabBarLabel: () => null, // Hide label for center button
+          tabBarIcon: ({ color, focused }) => <StandardTabIcon Icon={Scan} label="Scanner" color={color} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="materiel"
+        options={{
+          title: 'Matériel',
+          tabBarIcon: ({ color, focused }) => <StandardTabIcon Icon={Gauge} label="Matériel" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Réglages',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              top: 2,
-            }}>
-              <Settings size={24} color={color} strokeWidth={focused ? 2.5 : 2}  />
-              {focused && (
-                <View style={{
-                  width: 4,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: color,
-                  marginTop: 4,
-                  position: 'absolute',
-                  bottom: -14,
-                }} />
-              )}
-            </View>
-          ),
+          tabBarIcon: ({ color, focused }) => <StandardTabIcon Icon={Settings} label="Réglages" color={color} focused={focused} />,
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  standardItem: {
+    width: 66,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  standardLabel: {
+    fontFamily: 'Ubuntu_500Medium',
+    fontSize: 11,
+    color: COLORS.inactive,
+    lineHeight: 14,
+  },
+  standardLabelActive: {
+    color: COLORS.primaryDark,
+  },
+
+});

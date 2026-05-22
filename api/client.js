@@ -1,8 +1,7 @@
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { getAuthToken } from './tokenStore';
 
-
-const API_URL = 'https://eau-sure-app-auth.vercel.app/api'; 
+const API_URL = process.env.EXPO_PUBLIC_AUTH_API_URL || 'https://eau-sure-app-auth.vercel.app/api';
 
 const client = axios.create({
   baseURL: API_URL,
@@ -11,7 +10,7 @@ const client = axios.create({
   },
 });
 client.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('userToken');
+  const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
