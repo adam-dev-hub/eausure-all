@@ -2,6 +2,10 @@ import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 const { GatewayWifiScan } = NativeModules;
 
+export function isWifiScanModuleAvailable() {
+  return !!GatewayWifiScan?.scanAvailableSsids;
+}
+
 async function ensureWifiScanPermissions() {
   if (Platform.OS !== 'android') {
     throw new Error('Le scan Wi-Fi de proximite est actuellement disponible uniquement sur Android.');
@@ -22,7 +26,7 @@ async function ensureWifiScanPermissions() {
 }
 
 export async function scanNearbyWifiNetworks() {
-  if (!GatewayWifiScan?.scanAvailableSsids) {
+  if (!isWifiScanModuleAvailable()) {
     throw new Error('Module de scan Wi-Fi indisponible dans cette build Android.');
   }
 

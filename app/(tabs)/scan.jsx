@@ -44,7 +44,7 @@ import {
   startGatewayScan,
   provisionGatewayOverBle,
 } from '../../api/provisioningService';
-import { scanNearbyWifiNetworks } from '../../api/wifiScanner';
+import { isWifiScanModuleAvailable, scanNearbyWifiNetworks } from '../../api/wifiScanner';
 import { getUserGateways, updateGatewayLocation } from '../../api/pairingClient';
 
 const RECENT_SSIDS_KEY = 'gateway_recent_ssids_v1';
@@ -98,6 +98,7 @@ export default function GatewayProvisioningScreen() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
   const [pairingModalVisible, setPairingModalVisible] = useState(false);
+  const [wifiScanAvailable] = useState(isWifiScanModuleAvailable());
 
   const canSubmit = !!selectedGateway && !!wifiSsid.trim() && !!wifiPassword.trim() && !isProvisioning;
   const helperStatus = useMemo(() => {
@@ -333,6 +334,12 @@ export default function GatewayProvisioningScreen() {
   };
 
   const handleScanWifi = async () => {
+    if (!wifiScanAvailable) {
+      animateLayout();
+      setError("Le scan Wi‑Fi natif n'est pas disponible dans cette build Android. Saisissez le nom du réseau manuellement.");
+      return;
+    }
+
     setError('');
     setIsWifiScanning(true);
     try {
@@ -454,6 +461,7 @@ export default function GatewayProvisioningScreen() {
               canSubmit={canSubmit}
               handleProvision={handleProvision}
               handleScanWifi={handleScanWifi}
+              wifiScanAvailable={wifiScanAvailable}
               isWifiScanning={isWifiScanning}
               wifiNetworks={wifiNetworks}
               recentSsids={recentSsids}

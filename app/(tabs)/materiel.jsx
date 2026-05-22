@@ -32,7 +32,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import NodePairingHero from '../../components/NodePairingHero';
 import NodeConfigModal from '../../components/NodeConfigModal';
 
-const mapBgImage = require('../../assets/images/map-bg.png');
+const mapBgImage = require('../../assets/illustrations/map-background.png');
 
 export default function MaterielPage() {
   const [gateways, setGateways]           = useState([]);

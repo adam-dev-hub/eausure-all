@@ -3,9 +3,9 @@ import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-nativ
 import LottieView from 'lottie-react-native';
 import { CheckCircle2, Waves, Router, XCircle } from 'lucide-react-native';
 
-const bleAnimation       = require('../assets/lottie/ble-connection.json');
-const noConnectionAnimation = require('../assets/lottie/no_connection.json');
-const connectedAnimation = require('../assets/lottie/Connected.json');
+const bleAnimation = require('../assets/animations/ble-connection.json');
+const noConnectionAnimation = require('../assets/animations/no-connection.json');
+const connectedAnimation = require('../assets/animations/connected.json');
 
 function FadeSlide({ children, style }) {
   const opacity = useRef(new Animated.Value(0)).current;

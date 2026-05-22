@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Image, ImageBackground, Dimensions,
   TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl,
@@ -22,6 +22,7 @@ import WaterWaveBg from '../../components/WaterWaveBg';
 import MetricInfoModal from '../../components/MetricInfoModal';
 import NodeDetailModal from '../../components/NodeDetailModal';
 import UserAvatar from '../../components/UserAvatar';
+import { detectAlerts, registerForPushNotifications, sendAlertNotification, DEFAULT_THRESHOLDS } from '../../utils/alertUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -35,7 +36,7 @@ const THEME = {
   textSub: '#64748b',
 };
 
-const buoyImage = require('../../assets/3D_EauSure.png');
+const buoyImage = require('../../assets/branding/buoy-3d.png');
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -43,13 +44,24 @@ export default function DashboardPage() {
   const router = useRouter();
   const { latestData, isConnected } = useMqtt();
 
+  // Seuils et préférences de notification depuis le profil
+  const thresholds = { ...DEFAULT_THRESHOLDS, ...(profile?.preferences?.alertThresholds ?? {}) };
+  const pushEnabled = profile?.preferences?.notifications?.push ?? true;
+  const criticalOnly = profile?.preferences?.notifications?.criticalOnly ?? false;
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState(null);
   const [nodes, setNodes] = useState([]);
   const [latestByNode, setLatestByNode] = useState({});
-  const [alerts, setAlerts] = useState([]);
+  const [alerts, setAlerts] = useState([]);   // alertes basées sur les seuils
   const [totalAlerts, setTotalAlerts] = useState(0);
+  const nodesRef = useRef([]);
+
+  // Demande la permission de notification au montage
+  useEffect(() => {
+    registerForPushNotifications();
+  }, []);
 
   // Modals state
   const [infoModal, setInfoModal] = useState({ visible: false, type: null });
@@ -59,22 +71,22 @@ export default function DashboardPage() {
     tds: {
       title: "Qualité de l'eau (TDS)",
       description: "Le TDS (Total Dissolved Solids) mesure la quantité totale de matières dissoutes dans l'eau (minéraux, sels, métaux). Un taux élevé peut indiquer une eau contaminée ou très dure. Un score bas (moins de 300 ppm) indique généralement une eau douce et pure.",
-      image: require('../../assets/tds_info.png')
+      image: require('../../assets/illustrations/tds-info.png')
     },
     ph: {
       title: "Le pH de l'eau",
       description: "Le pH mesure l'acidité ou l'alcalinité de l'eau sur une échelle de 0 à 14. Une eau pure a un pH de 7 (neutre). Un bon équilibre est vital pour la santé et la faune.",
-      image: require('../../assets/ph_scale.png')
+      image: require('../../assets/illustrations/ph-scale.png')
     },
     temp: {
       title: "Température",
       description: "La température affecte les propriétés chimiques de l'eau. L'eau chaude dissout moins d'oxygène, ce qui peut affecter la vie aquatique et influencer les autres capteurs.",
-      image: require('../../assets/temp_info.png')
+      image: require('../../assets/illustrations/temperature-info.png')
     },
     turbidity: {
       title: "Turbidité",
       description: "La turbidité mesure le degré de trouble de l'eau causé par des particules en suspension. Une eau trouble indique souvent des sédiments ou pollutions.",
-      image: require('../../assets/turb_info.png')
+      image: require('../../assets/illustrations/turbidity-info.png')
     }
   };
 
@@ -93,6 +105,7 @@ export default function DashboardPage() {
         }
       }
       setNodes(allNodes);
+      nodesRef.current = allNodes;
 
       const latestMap = {};
       for (const n of allNodes) {
@@ -103,14 +116,23 @@ export default function DashboardPage() {
       }
       setLatestByNode(latestMap);
 
+      // Calcul des alertes basées sur les seuils (pas les events backend)
+      const allAlerts = [];
+      for (const n of allNodes) {
+        const record = latestMap[n.nodeId];
+        const nodeAlerts = detectAlerts(record, n.name || `Bouée ${n.nodeId.slice(-4)}`, thresholds);
+        allAlerts.push(...nodeAlerts);
+      }
+      setAlerts(allAlerts);
+
+      // Envoyer les notifications pour les nouvelles alertes critiques
+      for (const alert of allAlerts) {
+        sendAlertNotification(alert, pushEnabled, criticalOnly);
+      }
+
       try {
         const statsRes = await getSensorStats({ hours: 24 });
-        if (statsRes.success) {
-          setStats(statsRes.data.statistics);
-          if (statsRes.data.events && statsRes.data.events.length > 0) {
-            setAlerts(statsRes.data.events);
-          }
-        }
+        if (statsRes.success) setStats(statsRes.data.statistics);
       } catch { /* no stats */ }
     } catch (e) {
       console.error('[Dashboard] load error:', e);
@@ -131,7 +153,26 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     if (latestData && latestData.nodeId) {
-      setLatestByNode(prev => ({ ...prev, [latestData.nodeId]: latestData }));
+      setLatestByNode(prev => {
+        const updated = { ...prev, [latestData.nodeId]: latestData };
+
+        // Recalcul des alertes en temps réel sur la nouvelle donnée
+        const allAlerts = [];
+        for (const n of nodesRef.current) {
+          const record = updated[n.nodeId];
+          const nodeAlerts = detectAlerts(record, n.name || `Bouée ${n.nodeId.slice(-4)}`, thresholds);
+          allAlerts.push(...nodeAlerts);
+        }
+        setAlerts(allAlerts);
+
+        // Notifications pour les alertes de la nouvelle donnée uniquement
+        const newNodeAlerts = detectAlerts(latestData, latestData.nodeId, thresholds);
+        for (const alert of newNodeAlerts) {
+          sendAlertNotification(alert, pushEnabled, criticalOnly);
+        }
+
+        return updated;
+      });
     }
   }, [latestData]);
 
@@ -169,7 +210,7 @@ export default function DashboardPage() {
   const currentTemp = tempCount > 0 ? (tempSum / tempCount).toFixed(1) : '--';
   const currentTurbidity = turbCount > 0 ? (turbSum / turbCount).toFixed(1) : '--';
 
-  const totalAlertsValue = alerts.reduce((sum, e) => sum + e.count, 0);
+  const totalAlertsValue = alerts.length;
 
   return (
     <View style={styles.container}>
@@ -180,7 +221,7 @@ export default function DashboardPage() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.logoWrapper}>
-              <Image source={require('../../assets/logo.png')} style={styles.logoIcon} resizeMode="cover" />
+              <Image source={require('../../assets/branding/logo.png')} style={styles.logoIcon} resizeMode="cover" />
             </View>
             <View style={styles.headerTextWrap}>
               <Text style={styles.appName}>EauSûre</Text>
@@ -329,7 +370,7 @@ export default function DashboardPage() {
                     </Text>
                     <Text style={styles.alertText}>
                       {totalAlertsValue > 0
-                        ? alerts.map(a => `${a._id}: ${a.count}`).join(', ')
+                        ? alerts.map(a => a.label).join(' • ')
                         : 'Tout fonctionne normalement'}
                     </Text>
                   </View>
@@ -357,178 +398,107 @@ export default function DashboardPage() {
               const latest = latestByNode[node.nodeId];
               const score = computeQualityScore(latest);
               const scoreColor = getScoreColor(score);
-              const scoreLabel = getScoreLabel(score);
               const isActive = node.status?.active;
+              const rssi = latest?.signal?.rssi || node.status?.lastRssi || -70;
+              const battery = latest?.battery?.percentage ?? node.status?.lastBattery;
+              const rssiColor = rssi > -60 ? '#22c55e' : rssi > -80 ? '#f59e0b' : '#ef4444';
+              const battColor = battery >= 50 ? '#22c55e' : battery >= 20 ? '#f59e0b' : '#ef4444';
 
-              // Mapbox satellite background with LoRa range circle
               const loc = node.gatewayLocation;
               const hasLocation = loc?.lat && loc?.lng;
               const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
-
-              // Estimate LoRa range from RSSI: rough formula
-              const rssi = latest?.signal?.rssi || node.status?.lastRssi || -70;
-              // Higher zoom = smaller area visible. At RSSI -32 dBm (very close), 
-              // the node is likely within 50-200m. Use zoom 15-16 to show that scale.
-              const zoom = rssi > -50 ? 16 : rssi > -70 ? 15 : rssi > -90 ? 14.5 : 14;
-
-              // Use logo=false and attribution=false to remove Mapbox watermark/attribution
+              const zoom = 14;
               const mapImageUrl =
                 hasLocation && mapboxToken
-                  ? `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${loc.lng},${loc.lat},${zoom},0/600x280@2x?access_token=${mapboxToken}&logo=false&attribution=false`
+                  ? `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/pin-s+ef4444(${loc.lng},${loc.lat})/${loc.lng},${loc.lat},${zoom},0/600x300@2x?access_token=${mapboxToken}`
                   : null;
 
               return (
                 <TouchableOpacity
                   key={node.nodeId}
-                  activeOpacity={0.9}
+                  activeOpacity={0.92}
                   style={styles.buoyCardWrapper}
                   onPress={() => router.push('/telemetry')}
                 >
-                  <View style={[styles.buoyCard, styles.shadow]}>
-                    {/* Full-card map background */}
-                    {mapImageUrl ? (
-                      <ImageBackground
-                        source={{ uri: mapImageUrl }}
-                        style={styles.buoyCardFull}
-                        imageStyle={styles.buoyCardFullImage}
-                      >
-                        {/* LoRa range overlay — small colored circle */}
-                        <View style={styles.loraRangeOverlay}>
-                          <View style={[styles.loraCircle, {
-                            width: 44,
-                            height: 44,
-                            borderRadius: 22,
-                            backgroundColor: rssi > -60 ? 'rgba(34,197,94,0.2)' : rssi > -80 ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.25)',
-                            borderWidth: 1.5,
-                            borderColor: rssi > -60 ? 'rgba(34,197,94,0.5)' : rssi > -80 ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)',
-                          }]} />
-                          <View style={styles.loraCenterDot} />
-                        </View>
-
-                        {/* Dark gradient overlay for text readability */}
-                        <LinearGradient
-                          colors={['rgba(15,23,42,0.45)', 'rgba(15,23,42,0.88)']}
-                          style={StyleSheet.absoluteFill}
-                        />
-
-                        {/* Content */}
-                        <View style={styles.buoyContentOverlay}>
-                          {/* Top: image + name + gauge + arrow */}
-                          <View style={styles.buoyCardTop}>
-                            <Image source={buoyImage} style={styles.buoyImg} resizeMode="contain" />
-                            <View style={styles.buoyInfo}>
-                              <View style={styles.buoyNameRow}>
-                                <View style={[styles.buoyDot, { backgroundColor: isActive ? '#22c55e' : '#cbd5e1' }]} />
-                                <Text style={[styles.buoyName, { color: '#fff' }]} numberOfLines={1}>
-                                  {node.name || `Bouée ${node.nodeId.slice(-4)}`}
-                                </Text>
-                                {/* Score gauge */}
-                                <View style={styles.gaugeWrap}>
-                                  <View style={styles.gaugeTrack}>
-                                    <View style={[styles.gaugeFill, { width: `${score * 10}%`, backgroundColor: scoreColor }]} />
-                                  </View>
-                                  <Text style={[styles.gaugeLabel, { color: scoreColor }]}>{score}</Text>
-                                </View>
-                              </View>
-                              {/* Location */}
-                              <View style={styles.buoyLocationRow}>
-                                <MapPin size={12} color="#ef4444" />
-                                <Text style={styles.buoyLocationText}>
-                                  {node.gatewayLocation?.city || 'Localisation inconnue'}
-                                </Text>
-                              </View>
-                            </View>
-                            <TouchableOpacity
-                              onPress={() => setDetailModal({ visible: true, node, gateway: { name: node.gatewayName }, data: latest })}
-                              style={styles.detailArrowBtn}
-                              hitSlop={12}
-                            >
-                              <ArrowUpRight size={18} color="#fff" />
-                            </TouchableOpacity>
+                  {/* ── Carte map satellite (style materiel.jsx) ── */}
+                  <ImageBackground
+                    source={mapImageUrl ? { uri: mapImageUrl } : buoyImage}
+                    style={styles.buoyMapCard}
+                    imageStyle={styles.buoyMapCardImage}
+                  >
+                    <LinearGradient
+                      colors={['rgba(15,23,42,0.08)', 'rgba(15,23,42,0.72)']}
+                      style={styles.buoyMapGradient}
+                    >
+                      <View style={styles.buoyMapHeader}>
+                        {/* Icône + nom + statut */}
+                        <View style={styles.buoyMapTitleRow}>
+                          <View style={styles.buoyMapIcon}>
+                            <Waves size={20} color="#fff" />
                           </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.buoyMapName} numberOfLines={1}>
+                              {node.name || `Bouée ${node.nodeId.slice(-4)}`}
+                            </Text>
+                            <Text style={styles.buoyMapId}>{node.nodeId}</Text>
+                          </View>
+                          <View style={[
+                            styles.buoyStatusBadge,
+                            { backgroundColor: isActive ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.92)' },
+                          ]}>
+                            <View style={[styles.buoyStatusDot, { backgroundColor: isActive ? '#4ade80' : '#ef4444' }]} />
+                            <Text style={[styles.buoyStatusText, { color: isActive ? '#4ade80' : '#dc2626' }]}>
+                              {isActive ? 'Actif' : 'Inactif'}
+                            </Text>
+                          </View>                        </View>
 
-                          {/* Spacer to push metrics to bottom */}
-                          <View style={{ flex: 1 }} />
-
-                          {/* Bottom: Metrics rows */}
-                          {latest && (
-                            <View style={styles.buoyMetricsWrap}>
-                              <View style={styles.buoyMetrics}>
-                                <View style={styles.buoyMetricBoxDark}>
-                                  <Text style={styles.buoyMetricLabelDark}>pH</Text>
-                                  <Text style={styles.buoyMetricValueDark}>{latest.ph?.value?.toFixed(1) || '--'}</Text>
-                                </View>
-                                <View style={styles.buoyMetricBoxDark}>
-                                  <Text style={styles.buoyMetricLabelDark}>TDS</Text>
-                                  <Text style={styles.buoyMetricValueDark}>{latest.tds?.value ?? '--'}</Text>
-                                </View>
-                                <View style={styles.buoyMetricBoxDark}>
-                                  <Text style={styles.buoyMetricLabelDark}>Turbidité</Text>
-                                  <Text style={styles.buoyMetricValueDark}>{latest.turbidity?.score ?? '--'}/10</Text>
-                                </View>
-                              </View>
-                              <View style={styles.buoyMetrics}>
-                                <View style={styles.buoyMetricBoxDark}>
-                                  <Text style={styles.buoyMetricLabelDark}>Temp.</Text>
-                                  <Text style={styles.buoyMetricValueDark}>{latest.temperature?.water?.toFixed(1) || '--'}°</Text>
-                                </View>
-                                <View style={styles.buoyMetricBoxDark}>
-                                  <Text style={styles.buoyMetricLabelDark}>Batterie</Text>
-                                  <Text style={[styles.buoyMetricValueDark, { color: (latest.battery?.percentage || 0) < 20 ? '#f87171' : '#fff' }]}>
-                                    {latest.battery?.percentage ?? '--'}%
-                                  </Text>
-                                </View>
-                                <View style={styles.buoyMetricBoxDark}>
-                                  <Text style={styles.buoyMetricLabelDark}>Signal</Text>
-                                  <Text style={[styles.buoyMetricValueDark, { color: rssi > -60 ? '#4ade80' : rssi > -80 ? '#fbbf24' : '#f87171' }]}>
-                                    {rssi} dB
-                                  </Text>
-                                </View>
-                              </View>
-                            </View>
-                          )}
-                        </View>
-                      </ImageBackground>
-                    ) : (
-                      <View style={styles.buoyCardFull}>
-                        <LinearGradient
-                          colors={['rgba(14,165,233,0.15)', 'rgba(15,23,42,0.9)']}
-                          style={StyleSheet.absoluteFill}
-                        />
-                        <View style={styles.buoyContentOverlay}>
-                          <View style={styles.buoyCardTop}>
-                            <Image source={buoyImage} style={styles.buoyImg} resizeMode="contain" />
-                            <View style={styles.buoyInfo}>
-                              <View style={styles.buoyNameRow}>
-                                <View style={[styles.buoyDot, { backgroundColor: isActive ? '#22c55e' : '#cbd5e1' }]} />
-                                <Text style={[styles.buoyName, { color: '#fff' }]} numberOfLines={1}>
-                                  {node.name || `Bouée ${node.nodeId.slice(-4)}`}
-                                </Text>
-                                <View style={styles.gaugeWrap}>
-                                  <View style={styles.gaugeTrack}>
-                                    <View style={[styles.gaugeFill, { width: `${score * 10}%`, backgroundColor: scoreColor }]} />
-                                  </View>
-                                  <Text style={[styles.gaugeLabel, { color: scoreColor }]}>{score}</Text>
-                                </View>
-                              </View>
-                              <View style={styles.buoyLocationRow}>
-                                <MapPin size={12} color="#ef4444" />
-                                <Text style={styles.buoyLocationText}>
-                                  {node.gatewayLocation?.city || 'Localisation inconnue'}
-                                </Text>
-                              </View>
+                        {/* Footer map */}
+                        <View style={styles.buoyMapFooter}>
+                          <View style={styles.buoyMapMeta}>
+                            <MapPin size={13} color="#ef4444" />
+                            <Text style={styles.buoyMapMetaText}>
+                              {loc?.city || 'Localisation inconnue'}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={[styles.buoyScorePill, { backgroundColor: `${scoreColor}22`, borderColor: `${scoreColor}55` }]}>
+                              <View style={[styles.buoyScoreDot, { backgroundColor: scoreColor }]} />
+                              <Text style={[styles.buoyScorePillText, { color: scoreColor }]}>
+                                {score}/10
+                              </Text>
                             </View>
                             <TouchableOpacity
-                              onPress={() => setDetailModal({ visible: true, node, gateway: { name: node.gatewayName }, data: latest })}
-                              style={styles.detailArrowBtn}
-                              hitSlop={12}
+                              onPress={(e) => { e.stopPropagation?.(); setDetailModal({ visible: true, node, gateway: { name: node.gatewayName }, data: latest }); }}
+                              style={styles.buoyDetailBtn}
+                              hitSlop={8}
                             >
-                              <ArrowUpRight size={18} color="#fff" />
+                              <ArrowUpRight size={15} color="#fff" />
                             </TouchableOpacity>
                           </View>
                         </View>
                       </View>
-                    )}
+                    </LinearGradient>
+                  </ImageBackground>
+
+                  {/* ── Carte blanche métriques ── */}
+                  <View style={styles.buoyMetricsCard}>
+                    <View style={styles.buoyMetricsRow}>
+                      {[
+                        { label: 'pH',        value: latest?.ph?.value?.toFixed(1) ?? '--',                           color: '#2563eb',  bg: '#eff6ff' },
+                        { label: 'TDS',       value: latest?.tds?.value != null ? `${latest.tds.value}` : '--',       color: '#0ea5e9',  bg: '#f0f9ff', unit: 'ppm' },
+                        { label: 'Turbidité', value: latest?.turbidity?.score != null ? `${latest.turbidity.score}` : '--', color: '#8b5cf6', bg: '#faf5ff', unit: '/10' },
+                        { label: 'Temp.',     value: latest?.temperature?.water != null ? `${latest.temperature.water.toFixed(1)}` : '--', color: '#f59e0b', bg: '#fffbeb', unit: '°C' },
+                        { label: 'Batterie',  value: battery != null ? `${battery}` : '--',                           color: battColor,  bg: battery >= 50 ? '#f0fdf4' : battery >= 20 ? '#fffbeb' : '#fef2f2', unit: '%' },
+                        { label: 'Signal',    value: `${rssi}`,                                                        color: rssiColor,  bg: rssi > -60 ? '#f0fdf4' : rssi > -80 ? '#fffbeb' : '#fef2f2', unit: ' dB' },
+                      ].map(({ label, value, color, bg, unit }) => (
+                        <View key={label} style={[styles.buoyMetricItem, { backgroundColor: bg }]}>
+                          <Text style={[styles.buoyMetricValue, { color }]}>
+                            {value}<Text style={styles.buoyMetricUnit}>{unit}</Text>
+                          </Text>
+                          <Text style={styles.buoyMetricLabel}>{label}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                 </TouchableOpacity>
               );
@@ -576,8 +546,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 12 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  logoWrapper: { width: 40, height: 40, backgroundColor: '#e0f2fe', borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  logoIcon: { width: 60, height: 60 },
+  logoWrapper: { width: 44, height: 44, backgroundColor: '#e0f2fe', borderRadius: 14, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  logoIcon: { width: 44, height: 44 },
   headerTextWrap: { justifyContent: 'center' },
   appName: { fontSize: 18, fontFamily: 'Ubuntu_700Bold', color: '#0f172a' },
   appSlogan: { fontSize: 10, fontFamily: 'Ubuntu_500Medium', color: '#0ea5e9', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -626,33 +596,121 @@ const styles = StyleSheet.create({
   emptyBuoys: { alignItems: 'center', paddingVertical: 40, gap: 10 },
   emptyBuoysText: { fontFamily: 'Ubuntu_400Regular', fontSize: 14, color: '#64748b' },
 
-  buoyCardWrapper: { marginBottom: 14 },
-  buoyCard: { borderRadius: 20, overflow: 'hidden' },
-  buoyCardFull: { width: '100%', minHeight: 280, borderRadius: 20, overflow: 'hidden', backgroundColor: '#1e293b', justifyContent: 'flex-end' },
-  buoyCardFullImage: { borderRadius: 20 },
-  loraRangeOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  loraCircle: { position: 'absolute' },
-  loraCenterDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.3)' },
-  buoyContentOverlay: { flex: 1, padding: 14, zIndex: 3, justifyContent: 'space-between' },
-  buoyCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  buoyImg: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(148,163,184,1)' },
-  buoyInfo: { flex: 1, gap: 5 },
-  buoyNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  buoyDot: { width: 7, height: 7, borderRadius: 4 },
-  buoyName: { fontFamily: 'Ubuntu_700Bold', fontSize: 15, color: '#fff', flexShrink: 1 },
-  gaugeWrap: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  gaugeTrack: { width: 40, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' },
-  gaugeFill: { height: '100%', borderRadius: 3 },
-  gaugeLabel: { fontFamily: 'Ubuntu_700Bold', fontSize: 11 },
-  buoyLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  buoyLocationText: { fontFamily: 'Ubuntu_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.7)' },
-  buoyScoreBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  buoyCardWrapper: { marginBottom: 12 },
+
+  // ── Carte map satellite (identique gwCardBg de materiel.jsx) ──
+  buoyMapCard: {
+    width: '100%',
+    height: 180,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#0f172a',
+  },
+  buoyMapCardImage: { opacity: 0.92 },
+  buoyMapGradient: {
+    flex: 1,
+    padding: 20,
+    paddingBottom: 28,
+    justifyContent: 'space-between',
+  },
+  buoyMapHeader: { flex: 1, justifyContent: 'space-between' },
+  buoyMapTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  buoyMapIcon: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)',
+  },
+  buoyMapName: { fontFamily: 'Ubuntu_700Bold', fontSize: 18, color: '#fff' },
+  buoyMapId: { fontFamily: 'Ubuntu_400Regular', fontSize: 13, color: '#e2e8f0', marginTop: 2 },
+  buoyStatusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 999, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)',
+  },
+  buoyStatusDot: { width: 7, height: 7, borderRadius: 4 },
+  buoyStatusText: { fontFamily: 'Ubuntu_700Bold', fontSize: 12 },
+  gwFooterPremium: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.25)', paddingTop: 8,
+  },
+  buoyMapFooter: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.25)', paddingTop: 8,
+  },
+  buoyMapMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  buoyMapMetaText: { fontFamily: 'Ubuntu_500Medium', fontSize: 13, color: '#fff' },
+
+  // ── Carte blanche métriques ──
+  buoyMetricsCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 12,
+    marginTop: -20,
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  buoyMetricsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  buoyMetricItem: {
+    width: '30%',
+    flexGrow: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  buoyMetricValue: {
+    fontFamily: 'Ubuntu_700Bold',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  buoyMetricUnit: {
+    fontFamily: 'Ubuntu_500Medium',
+    fontSize: 11,
+  },
+  buoyMetricLabel: {
+    fontFamily: 'Ubuntu_500Medium',
+    fontSize: 11,
+    color: '#94a3b8',
+    textAlign: 'center',
+  },
+
+  // Score pill dans le footer map
+  buoyScorePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
   buoyScoreDot: { width: 6, height: 6, borderRadius: 3 },
-  buoyScoreText: { fontFamily: 'Ubuntu_700Bold', fontSize: 12 },
-  buoyMetrics: { flexDirection: 'row', gap: 6 },
-  buoyMetricsWrap: { gap: 6 },
-  buoyMetricBoxDark: { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: 8, alignItems: 'center', gap: 3 },
-  buoyMetricLabelDark: { fontFamily: 'Ubuntu_500Medium', fontSize: 10, color: 'rgba(255,255,255,0.6)' },
-  buoyMetricValueDark: { fontFamily: 'Ubuntu_700Bold', fontSize: 14, color: '#fff' },
-  detailArrowBtn: { width: 34, height: 34, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  buoyScorePillText: { fontFamily: 'Ubuntu_700Bold', fontSize: 12 },
+
+  buoyDetailBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

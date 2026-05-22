@@ -34,6 +34,7 @@ import { updateNodeConfig, unpairNode } from '../api/pairingClient';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const INTERVAL_STEPS = [
+  { label: '3 min', value: 180,  battery: 'Trop Élevée',    batteryColor: '#000' },
   { label: '30 min', value: 1800,  battery: 'Élevée',    batteryColor: '#ef4444' },
   { label: '1 h',    value: 3600,  battery: 'Modérée',   batteryColor: '#f59e0b' },
   { label: '2 h',    value: 7200,  battery: 'Faible',    batteryColor: '#84cc16' },

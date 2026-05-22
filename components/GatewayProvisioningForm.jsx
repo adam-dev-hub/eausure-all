@@ -23,6 +23,7 @@ export default function GatewayProvisioningForm({
   canSubmit,
   handleProvision,
   handleScanWifi,
+  wifiScanAvailable,
   isWifiScanning,
   wifiNetworks,
   recentSsids,
@@ -150,10 +151,10 @@ export default function GatewayProvisioningForm({
                 <Text style={styles.inputLabel}>Réseau Wi-Fi (SSID)</Text>
                 <Pressable
                   onPress={handleScanWifi}
-                  disabled={isWifiScanning || isProvisioning}
+                  disabled={!wifiScanAvailable || isWifiScanning || isProvisioning}
                   style={({ pressed }) => [
                     styles.scanWifiChip,
-                    (isWifiScanning || isProvisioning) && styles.scanWifiChipDisabled,
+                    (!wifiScanAvailable || isWifiScanning || isProvisioning) && styles.scanWifiChipDisabled,
                     pressed && styles.quickChipPressed,
                   ]}
                 >
@@ -161,6 +162,12 @@ export default function GatewayProvisioningForm({
                   <Text style={styles.scanWifiChipText}>{isWifiScanning ? 'Scan...' : 'Scanner'}</Text>
                 </Pressable>
               </View>
+
+              {!wifiScanAvailable ? (
+                <Text style={styles.scanHintText}>
+                  Cette build Android n’embarque pas le module de scan Wi‑Fi. Entrez simplement le SSID du réseau manuellement.
+                </Text>
+              ) : null}
 
               <View style={styles.inputWrapper}>
                 <View style={styles.iconContainer}>
@@ -580,6 +587,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#0284c7',
     fontFamily: 'Ubuntu_500Medium',
+  },
+  scanHintText: {
+    marginTop: 8,
+    marginBottom: 10,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#64748b',
+    fontFamily: 'Ubuntu_400Regular',
   },
   chipWrap: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import {
@@ -34,7 +34,14 @@ import {
   Smartphone,
   User,
   Wifi,
+  AlertTriangle,
+  BookOpen,
+  Bug,
+  Github,
+  ExternalLink,
 } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { DEFAULT_THRESHOLDS } from '../../utils/alertUtils';
 import { useAuth } from '../../context/AuthContext';
 import { useProfile } from '../../context/ProfileContext';
 import { getUserGateways, getGatewayNodes, getGatewayCommandStatus, triggerGatewayFirmwareUpdate, triggerNodeFirmwareUpdate } from '../../api/pairingClient';
@@ -42,6 +49,11 @@ import { getActiveFirmwareReleases } from '../../api/adminClient';
 import UserAvatar from '../../components/UserAvatar';
 import WaterWaveBg from '../../components/WaterWaveBg';
 import CustomModal from '../../components/CustomModal';
+import {
+  loadUpdateTrackingSessions,
+  saveUpdateTrackingSessions,
+  clearUpdateTrackingSessions,
+} from '../../utils/updateTrackingStorage';
 
 const COLORS = {
   background: '#f8fafc',
@@ -61,7 +73,12 @@ const COLORS = {
 
 const HERO_CARD_HEIGHT = 200;
 const UPDATE_POLL_MS = 5000;
-const UPDATE_TIMEOUT_MS = 30 * 60 * 1000;
+const UPDATE_POLL_BACKOFF_429_MS = 30000;
+const UPDATE_SNAPSHOT_REFRESH_MS = 30000;
+const UPDATE_TIMEOUT_MS = 45 * 60 * 1000;
+const UPDATE_ACK_TIMEOUT_GATEWAY_MS = 5 * 60 * 1000;
+const UPDATE_ACK_TIMEOUT_NODE_MS = 45 * 60 * 1000;
+const GATEWAY_UPDATE_APPLY_TIMEOUT_MS = 12 * 60 * 1000;
 
 function compareVersion(current, target) {
   if (!current || !target) return 0;
@@ -135,14 +152,14 @@ function describeTrackingSession(session, installedVersion) {
 
   if (session.state === 'acked') {
     return {
-      badgeLabel: 'Préparation en cours',
+      badgeLabel: 'Transfert en cours',
       badgeTone: 'neutral',
       actionLabel: 'Traitement en cours',
       actionDisabled: true,
       statusNote: session.message || (
         session.targetType === 'gateway'
-          ? 'La passerelle prépare le redémarrage sur le nouveau firmware.'
-          : 'La passerelle a accepté la FUOTA. Attente du cycle de transfert.'
+          ? 'Firmware téléchargé — redémarrage passerelle imminent.'
+          : 'Image sur la passerelle — transfert LoRa FUOTA sur les prochains cycles.'
       ),
       terminal: false,
     };
@@ -150,11 +167,11 @@ function describeTrackingSession(session, installedVersion) {
 
   if (session.state === 'sent') {
     return {
-      badgeLabel: 'Commande envoyée',
+      badgeLabel: 'Attente passerelle',
       badgeTone: 'neutral',
-      actionLabel: 'En attente',
+      actionLabel: 'Suivi en cours',
       actionDisabled: true,
-      statusNote: session.message || 'La commande a été envoyée à la passerelle.',
+      statusNote: session.message || 'La commande a été envoyée. Attente de confirmation par la passerelle.',
       terminal: false,
     };
   }
@@ -174,6 +191,7 @@ export default function SettingsPage() {
   const { logout, user } = useAuth();
   const { profile, updateProfile, loading: profileLoading, fetchProfile } = useProfile();
   const [editing, setEditing] = useState(false);
+  const [editingThresholds, setEditingThresholds] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshingFirmware, setRefreshingFirmware] = useState(false);
   const [loadingFirmware, setLoadingFirmware] = useState(true);
@@ -190,6 +208,7 @@ export default function SettingsPage() {
     avatar: '',
     push: true,
     criticalOnly: false,
+    thresholds: { ...DEFAULT_THRESHOLDS },
   });
   const [firmwareState, setFirmwareState] = useState({
     gateways: [],
@@ -198,8 +217,38 @@ export default function SettingsPage() {
     latestNodeRelease: null,
   });
   const [updateTracking, setUpdateTracking] = useState({});
+  const [trackingHydrated, setTrackingHydrated] = useState(false);
   const [selectedHardwareType, setSelectedHardwareType] = useState(null);
   const [heroCardWidth, setHeroCardWidth] = useState(0);
+  const lastFirmwareSnapshotAtRef = useRef(0);
+  const trackingPollTimerRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const persisted = await loadUpdateTrackingSessions();
+      if (!active) return;
+      setUpdateTracking(persisted);
+      setTrackingHydrated(true);
+      console.log('[Settings][Firmware][TrackingRestore]', persisted);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!trackingHydrated || selectedHardwareType) return;
+    const activeSessions = Object.values(updateTracking).filter((session) => session && !session.terminal);
+    const preferredType = activeSessions[0]?.targetType || null;
+    if (preferredType) {
+      setSelectedHardwareType(preferredType);
+    }
+  }, [trackingHydrated, updateTracking, selectedHardwareType]);
+
+  useEffect(() => {
+    void saveUpdateTrackingSessions(updateTracking);
+  }, [updateTracking]);
 
   const hasChanges = useMemo(() => {
     if (!profile) return false;
@@ -209,6 +258,7 @@ export default function SettingsPage() {
     const initialAvatar = profile.avatar || profile.image || '';
     const initialPush = profile.preferences?.notifications?.push ?? true;
     const initialCriticalOnly = profile.preferences?.notifications?.criticalOnly ?? false;
+    const initialThresholds = profile.preferences?.alertThresholds ?? DEFAULT_THRESHOLDS;
 
     return (
       formData.name !== initialName ||
@@ -216,13 +266,31 @@ export default function SettingsPage() {
       formData.organization !== initialOrganization ||
       formData.avatar !== initialAvatar ||
       formData.push !== initialPush ||
-      formData.criticalOnly !== initialCriticalOnly
+      formData.criticalOnly !== initialCriticalOnly ||
+      JSON.stringify(formData.thresholds) !== JSON.stringify({ ...DEFAULT_THRESHOLDS, ...initialThresholds })
     );
   }, [formData, profile]);
 
   const showModal = (message, type = 'success') => {
     setModalContent({ message, type });
     setModalVisible(true);
+  };
+
+  const dismissUpdateTracking = (key, reason = 'Suivi abandonné manuellement.') => {
+    setUpdateTracking((prev) => {
+      const session = prev[key];
+      if (!session) return prev;
+      return {
+        ...prev,
+        [key]: {
+          ...session,
+          state: 'expired',
+          message: reason,
+          updatedAt: Date.now(),
+          terminal: true,
+        },
+      };
+    });
   };
 
   useEffect(() => {
@@ -236,6 +304,7 @@ export default function SettingsPage() {
       avatar: profile.avatar || profile.image || '',
       push: profile.preferences?.notifications?.push ?? true,
       criticalOnly: profile.preferences?.notifications?.criticalOnly ?? false,
+      thresholds: { ...DEFAULT_THRESHOLDS, ...(profile.preferences?.alertThresholds ?? {}) },
     });
   }, [profile]);
 
@@ -294,6 +363,7 @@ export default function SettingsPage() {
     try {
       const snapshot = await fetchFirmwareSnapshot();
       setFirmwareState(snapshot);
+      lastFirmwareSnapshotAtRef.current = Date.now();
 
       console.log('[Settings][Firmware][Mapped]', {
         gateways: snapshot.gateways.map((gateway) => ({
@@ -356,6 +426,7 @@ export default function SettingsPage() {
           push: formData.push,
           criticalOnly: formData.criticalOnly,
         },
+        alertThresholds: formData.thresholds,
       },
     });
 
@@ -379,6 +450,11 @@ export default function SettingsPage() {
   };
 
   const handleGatewayUpdate = async (gateway) => {
+    if (!trackingHydrated) {
+      Alert.alert('Veuillez patienter', "Le suivi des mises à jour est encore en cours d'initialisation.");
+      return;
+    }
+
     const release = firmwareState.latestGatewayRelease;
     if (!release) {
       Alert.alert('Information', 'Aucune release gateway active disponible.');
@@ -386,6 +462,12 @@ export default function SettingsPage() {
     }
 
     const key = `gw:${gateway._id}`;
+    const existingSession = updateTracking[key];
+    if (existingSession && !existingSession.terminal) {
+      Alert.alert('Mise à jour en cours', 'Une session OTA est déjà active pour cette passerelle.');
+      return;
+    }
+
     setTriggeringKey(key);
     try {
       const response = await triggerGatewayFirmwareUpdate(gateway._id, {
@@ -407,6 +489,9 @@ export default function SettingsPage() {
           message: 'Commande OTA envoyée à la passerelle.',
           startedAt: Date.now(),
           updatedAt: Date.now(),
+          ackDeadlineAt: Date.now() + UPDATE_ACK_TIMEOUT_GATEWAY_MS,
+          applyDeadlineAt: Date.now() + GATEWAY_UPDATE_APPLY_TIMEOUT_MS,
+          terminal: false,
         },
       }));
       showModal(`La mise à jour de ${gateway.name || gateway.gatewayId} a été déclenchée.`, 'success');
@@ -418,6 +503,11 @@ export default function SettingsPage() {
   };
 
   const handleNodeUpdate = async (node) => {
+    if (!trackingHydrated) {
+      Alert.alert('Veuillez patienter', "Le suivi des mises à jour est encore en cours d'initialisation.");
+      return;
+    }
+
     const release = firmwareState.latestNodeRelease;
     if (!release) {
       Alert.alert('Information', 'Aucune release node active disponible.');
@@ -425,6 +515,12 @@ export default function SettingsPage() {
     }
 
     const key = `node:${node.gatewayDbId}:${node.nodeId}`;
+    const existingSession = updateTracking[key];
+    if (existingSession && !existingSession.terminal) {
+      Alert.alert('Mise à jour en cours', 'Une session FUOTA est déjà active pour ce nœud.');
+      return;
+    }
+
     setTriggeringKey(key);
     try {
       const response = await triggerNodeFirmwareUpdate(node.gatewayDbId, node.nodeId, {
@@ -446,6 +542,12 @@ export default function SettingsPage() {
           message: 'Commande FUOTA envoyée à la passerelle.',
           startedAt: Date.now(),
           updatedAt: Date.now(),
+          ackDeadlineAt: Date.now() + UPDATE_ACK_TIMEOUT_NODE_MS,
+          applyDeadlineAt: Date.now() + Math.max(
+            ((node.config?.measureInterval || 1800) * 1000) * 3 + 300000,
+            20 * 60 * 1000,
+          ),
+          terminal: false,
         },
       }));
       showModal(`La mise à jour du nœud ${node.nodeId} a été déclenchée.`, 'success');
@@ -459,16 +561,30 @@ export default function SettingsPage() {
   useEffect(() => {
     const activeSessions = Object.entries(updateTracking).filter(([, session]) => session && !session.terminal);
     if (activeSessions.length === 0) {
+      if (trackingPollTimerRef.current) {
+        clearTimeout(trackingPollTimerRef.current);
+        trackingPollTimerRef.current = null;
+      }
       return undefined;
     }
 
     let cancelled = false;
 
     const poll = async () => {
+      let nextDelayMs = UPDATE_POLL_MS;
       try {
-        const snapshot = await fetchFirmwareSnapshot();
-        if (cancelled) return;
-        setFirmwareState(snapshot);
+        const now = Date.now();
+        const shouldRefreshSnapshot =
+          !lastFirmwareSnapshotAtRef.current ||
+          now - lastFirmwareSnapshotAtRef.current >= UPDATE_SNAPSHOT_REFRESH_MS;
+
+        let snapshot = firmwareState;
+        if (shouldRefreshSnapshot) {
+          snapshot = await fetchFirmwareSnapshot();
+          if (cancelled) return;
+          setFirmwareState(snapshot);
+          lastFirmwareSnapshotAtRef.current = Date.now();
+        }
 
         const gatewayMap = new Map(snapshot.gateways.map((gateway) => [String(gateway._id), gateway]));
         const nodeMap = new Map(snapshot.nodes.map((node) => [`${node.gatewayDbId}:${node.nodeId}`, node]));
@@ -476,6 +592,7 @@ export default function SettingsPage() {
         const updates = {};
 
         for (const [key, session] of activeSessions) {
+          const now = Date.now();
           let installedVersion = '';
           if (session.targetType === 'gateway') {
             installedVersion = getInstalledVersion(gatewayMap.get(String(session.gatewayId)));
@@ -494,8 +611,44 @@ export default function SettingsPage() {
             continue;
           }
 
+          if (installedVersion && session.targetVersion &&
+              compareVersion(installedVersion, session.targetVersion) >= 0) {
+            updates[key] = {
+              ...session,
+              state: 'succeeded',
+              message: `Version ${installedVersion} déjà installée (hors suivi commande).`,
+              updatedAt: Date.now(),
+              terminal: true,
+            };
+            continue;
+          }
+
           if (!session.commandId) {
             updates[key] = session;
+            continue;
+          }
+
+          if (['pending', 'sent'].includes(session.state) && session.ackDeadlineAt && now > session.ackDeadlineAt) {
+            updates[key] = {
+              ...session,
+              state: 'expired',
+              message: 'La passerelle n’a pas confirmé la réception de la commande dans le délai prévu.',
+              updatedAt: now,
+              terminal: true,
+            };
+            continue;
+          }
+
+          if (session.state === 'acked' && session.applyDeadlineAt && now > session.applyDeadlineAt) {
+            updates[key] = {
+              ...session,
+              state: 'expired',
+              message: session.targetType === 'node'
+                ? 'Le nœud n’a pas appliqué la mise à jour avant la fin de son cycle attendu.'
+                : 'La passerelle n’a pas appliqué la mise à jour dans le délai prévu.',
+              updatedAt: now,
+              terminal: true,
+            };
             continue;
           }
 
@@ -505,8 +658,10 @@ export default function SettingsPage() {
             const nextState = command.status || session.state;
             const defaultMessage = nextState === 'acked'
               ? session.targetType === 'gateway'
-                ? 'La passerelle a reçu la commande et prépare l’OTA.'
-                : 'La passerelle a reçu la commande et attend la fenêtre FUOTA.'
+                ? 'Firmware téléchargé — la passerelle va redémarrer pour appliquer la mise à jour.'
+                : 'Transfert FUOTA terminé côté passerelle — le nœud applique la version au prochain cycle.'
+              : nextState === 'failed'
+                ? command?.payload?.failReason || session.message || 'La passerelle a signalé un échec FUOTA.'
               : nextState === 'sent'
                 ? 'La commande a été publiée vers la passerelle.'
                 : nextState === 'pending'
@@ -517,17 +672,30 @@ export default function SettingsPage() {
               ...session,
               state: nextState,
               message: defaultMessage,
-              updatedAt: Date.now(),
+              updatedAt: now,
               terminal: ['failed', 'expired'].includes(nextState),
             };
           } catch (error) {
-            const age = Date.now() - session.startedAt;
+            if (error?.response?.status === 429) {
+              nextDelayMs = Math.max(nextDelayMs, UPDATE_POLL_BACKOFF_429_MS);
+            }
+            if (error?.response?.status === 404) {
+              updates[key] = {
+                ...session,
+                state: 'expired',
+                message: 'Commande introuvable côté cloud — le suivi a été clôturé.',
+                updatedAt: now,
+                terminal: true,
+              };
+              continue;
+            }
+            const age = now - session.startedAt;
             updates[key] = age > UPDATE_TIMEOUT_MS
               ? {
                 ...session,
                 state: 'expired',
                 message: 'Le suivi a expiré avant confirmation de la mise à jour.',
-                updatedAt: Date.now(),
+                updatedAt: now,
                 terminal: true,
               }
               : session;
@@ -544,20 +712,29 @@ export default function SettingsPage() {
           });
         }
       } catch (error) {
+        if (error?.response?.status === 429) {
+          nextDelayMs = Math.max(nextDelayMs, UPDATE_POLL_BACKOFF_429_MS);
+        }
         console.log('[Settings][Firmware][TrackingPoll]', error?.message || error);
+      } finally {
+        if (!cancelled) {
+          trackingPollTimerRef.current = setTimeout(() => {
+            void poll();
+          }, nextDelayMs);
+        }
       }
     };
 
     void poll();
-    const timer = setInterval(() => {
-      void poll();
-    }, UPDATE_POLL_MS);
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (trackingPollTimerRef.current) {
+        clearTimeout(trackingPollTimerRef.current);
+        trackingPollTimerRef.current = null;
+      }
     };
-  }, [updateTracking]);
+  }, [updateTracking, firmwareState]);
 
   const firmwareSummary = useMemo(() => {
     const targetGatewayVersion = firmwareState.latestGatewayRelease?.version || '';
@@ -594,6 +771,11 @@ export default function SettingsPage() {
       nodeCurrent,
     };
   }, [firmwareState]);
+
+  const activeTrackingCount = useMemo(
+    () => Object.values(updateTracking).filter((session) => session && !session.terminal).length,
+    [updateTracking]
+  );
 
   const visibleHardware = selectedHardwareType === 'gateway'
     ? firmwareState.gateways
@@ -641,7 +823,7 @@ export default function SettingsPage() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.logoWrapper}>
-              <Image source={require('../../assets/logo.png')} style={styles.logoIcon} resizeMode="cover" />
+              <Image source={require('../../assets/branding/logo.png')} style={styles.logoIcon} resizeMode="cover" />
             </View>
             <View style={styles.headerTextWrap}>
               <Text style={styles.appName}>EauSûre</Text>
@@ -745,6 +927,104 @@ export default function SettingsPage() {
           <ToggleRow icon={Bell} label="Alertes critiques uniquement" value={!!formData.criticalOnly} onValueChange={() => setFormData((prev) => ({ ...prev, criticalOnly: !prev.criticalOnly }))} disabled={!editing} />
         </View>
 
+        {/* ── Seuils d'alertes ── */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <SectionTitle icon={AlertTriangle} title="Seuils d'alertes" compact />
+            {editingThresholds ? (
+              <TouchableOpacity
+                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                onPress={async () => {
+                  setSaving(true);
+                  const result = await updateProfile({
+                    preferences: {
+                      notifications: {
+                        push: formData.push,
+                        criticalOnly: formData.criticalOnly,
+                      },
+                      alertThresholds: formData.thresholds,
+                    },
+                  });
+                  setSaving(false);
+                  if (result.success) {
+                    setEditingThresholds(false);
+                    showModal('Seuils mis à jour avec succès.', 'success');
+                    await fetchProfile?.();
+                  } else {
+                    showModal(result.error || 'Impossible de sauvegarder les seuils.', 'error');
+                  }
+                }}
+                disabled={saving}
+              >
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Save size={16} color="#fff" />}
+                <Text style={styles.saveButtonText}>{saving ? '...' : 'Enregistrer'}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.inlineAction} onPress={() => setEditingThresholds(true)}>
+                <Edit3 size={15} color={COLORS.primaryDark} />
+                <Text style={styles.inlineActionText}>Modifier</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.sectionText}>
+            Une alerte est déclenchée dès qu'une valeur dépasse ces limites.
+          </Text>
+
+          {[
+            { key: 'phMin',      label: 'pH minimum',          unit: '',    step: 0.1, min: 0,   max: 14   },
+            { key: 'phMax',      label: 'pH maximum',          unit: '',    step: 0.1, min: 0,   max: 14   },
+            { key: 'tdsMax',     label: 'TDS maximum',         unit: ' ppm', step: 50, min: 0,   max: 5000 },
+            { key: 'turbScore',  label: 'Turbidité score min', unit: '/10', step: 1,   min: 0,   max: 10   },
+            { key: 'tempMin',    label: 'Température min',     unit: '°C',  step: 1,   min: -10, max: 50   },
+            { key: 'tempMax',    label: 'Température max',     unit: '°C',  step: 1,   min: -10, max: 50   },
+            { key: 'batteryMin', label: 'Batterie minimum',    unit: '%',   step: 5,   min: 0,   max: 100  },
+          ].map(({ key, label, unit, step, min, max }, index, arr) => (
+            <View key={key} style={[styles.thresholdRow, index === arr.length - 1 && { borderBottomWidth: 0 }]}>
+              <Text style={styles.thresholdLabel}>{label}</Text>
+              <View style={styles.thresholdControls}>
+                <TouchableOpacity
+                  style={[styles.thresholdBtn, !editingThresholds && styles.thresholdBtnDisabled]}
+                  disabled={!editingThresholds}
+                  onPress={() => setFormData(prev => ({
+                    ...prev,
+                    thresholds: {
+                      ...prev.thresholds,
+                      [key]: Math.max(min, parseFloat((prev.thresholds[key] - step).toFixed(2))),
+                    },
+                  }))}
+                >
+                  <Text style={[styles.thresholdBtnText, !editingThresholds && { color: COLORS.textSub }]}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.thresholdValue}>
+                  {formData.thresholds[key]}{unit}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.thresholdBtn, !editingThresholds && styles.thresholdBtnDisabled]}
+                  disabled={!editingThresholds}
+                  onPress={() => setFormData(prev => ({
+                    ...prev,
+                    thresholds: {
+                      ...prev.thresholds,
+                      [key]: Math.min(max, parseFloat((prev.thresholds[key] + step).toFixed(2))),
+                    },
+                  }))}
+                >
+                  <Text style={[styles.thresholdBtnText, !editingThresholds && { color: COLORS.textSub }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+
+          {editingThresholds && (
+            <TouchableOpacity
+              style={styles.resetThresholdsBtn}
+              onPress={() => setFormData(prev => ({ ...prev, thresholds: { ...DEFAULT_THRESHOLDS } }))}
+            >
+              <Text style={styles.resetThresholdsBtnText}>Réinitialiser les valeurs par défaut</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <SectionTitle icon={Download} title="Mises à jour firmware" compact />
@@ -755,6 +1035,39 @@ export default function SettingsPage() {
           <Text style={styles.sectionText}>
             Vous pouvez déclencher l’OTA de votre gateway ou la FUOTA de vos nœuds depuis l’application.
           </Text>
+
+          {!trackingHydrated ? (
+            <View style={styles.firmwareTrackingBanner}>
+              <ActivityIndicator size="small" color={COLORS.primaryDark} />
+              <Text style={styles.firmwareTrackingBannerText}>Restauration du suivi des mises à jour...</Text>
+            </View>
+          ) : activeTrackingCount > 0 ? (
+            <TouchableOpacity
+              style={styles.firmwareTrackingBanner}
+              onPress={() => {
+                Alert.alert(
+                  'Réinitialiser le suivi',
+                  'Clôturer toutes les mises à jour en cours dans l’application ? (Cela n’annule pas une commande déjà envoyée à la passerelle.)',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Réinitialiser',
+                      style: 'destructive',
+                      onPress: async () => {
+                        setUpdateTracking({});
+                        await clearUpdateTrackingSessions();
+                      },
+                    },
+                  ],
+                );
+              }}
+            >
+              <ShieldCheck size={15} color={COLORS.primaryDark} />
+              <Text style={styles.firmwareTrackingBannerText}>
+                {activeTrackingCount} mise{activeTrackingCount > 1 ? 's' : ''} à jour en cours de suivi — toucher pour réinitialiser
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           <View style={styles.summaryRow}>
             <SummaryPill label="Gateway cible" value={firmwareState.latestGatewayRelease?.version || 'N/A'} tone="blue" />
@@ -838,7 +1151,7 @@ export default function SettingsPage() {
                   const effectiveActionLabel = trackingUi?.actionLabel || actionLabel;
                   const effectiveActionDisabled = trackingUi
                     ? trackingUi.actionDisabled
-                    : (!hasRelease || !outdated || triggeringKey === key);
+                    : (!trackingHydrated || !hasRelease || !outdated || triggeringKey === key);
 
                   return (
                     <DeviceCard
@@ -886,7 +1199,8 @@ export default function SettingsPage() {
                   const effectiveActionLabel = trackingUi?.actionLabel || actionLabel;
                   const effectiveActionDisabled = trackingUi
                     ? trackingUi.actionDisabled
-                    : (!hasRelease || !outdated || triggeringKey === key);
+                    : (!trackingHydrated || !hasRelease || !outdated || triggeringKey === key);
+                  const trackingActive = tracking && !tracking.terminal;
 
                   return (
                     <DeviceCard
@@ -901,6 +1215,10 @@ export default function SettingsPage() {
                       actionDisabled={effectiveActionDisabled}
                       onAction={() => void handleNodeUpdate(node)}
                       actionLoading={triggeringKey === key}
+                      secondaryActionLabel={trackingActive ? 'Abandonner le suivi' : null}
+                      onSecondaryAction={trackingActive
+                        ? () => dismissUpdateTracking(key)
+                        : null}
                     />
                   );
                 })
@@ -908,6 +1226,60 @@ export default function SettingsPage() {
             </>
           )}
         </View>
+
+        {/* ── Documentation & Support ── */}
+        <View style={styles.card}>
+          <SectionTitle icon={BookOpen} title="Documentation & Support" />
+
+          <TouchableOpacity
+            style={styles.linkRow}
+            activeOpacity={0.7}
+            onPress={() => WebBrowser.openBrowserAsync('https://github.com/EauSure')}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: '#f0fdf4' }]}>
+              <Github size={16} color="#15803d" />
+            </View>
+            <View style={styles.rowContent}>
+              <Text style={styles.rowLabel}>Documentation</Text>
+              <Text style={styles.staticValue}>github.com/EauSure</Text>
+            </View>
+            <ExternalLink size={15} color={COLORS.textSub} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkRow}
+            activeOpacity={0.7}
+            onPress={() => WebBrowser.openBrowserAsync('https://github.com/EauSure/issues/new')}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: '#fef2f2' }]}>
+              <Bug size={16} color={COLORS.danger} />
+            </View>
+            <View style={styles.rowContent}>
+              <Text style={styles.rowLabel}>Signaler un problème</Text>
+              <Text style={styles.staticValue}>Ouvrir un ticket GitHub</Text>
+            </View>
+            <ExternalLink size={15} color={COLORS.textSub} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Développeur ── */}
+        <TouchableOpacity
+          style={styles.devCard}
+          activeOpacity={0.8}
+          onPress={() => WebBrowser.openBrowserAsync('https://github.com/adam-dev-hub')}
+        >
+          <View style={styles.devLeft}>
+            <View style={styles.devAvatar}>
+              <Github size={22} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.devName}>Adam Farjeoui</Text>
+              <Text style={styles.devRole}>Développeur de l'application</Text>
+              <Text style={styles.devHandle}>@adam-dev-hub</Text>
+            </View>
+          </View>
+          <ExternalLink size={16} color={COLORS.textSub} />
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutButton} onPress={logout}>
           <LogOut size={18} color={COLORS.danger} />
@@ -1019,6 +1391,8 @@ function DeviceCard({
   actionDisabled,
   actionLoading,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
 }) {
   const badgeStyle = badgeTone === 'warning'
     ? styles.badgeWarning
@@ -1049,6 +1423,11 @@ function DeviceCard({
       <TouchableOpacity style={[styles.deviceButton, actionDisabled && styles.deviceButtonDisabled]} onPress={onAction} disabled={actionDisabled}>
         {actionLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.deviceButtonText}>{actionLabel}</Text>}
       </TouchableOpacity>
+      {secondaryActionLabel && onSecondaryAction ? (
+        <TouchableOpacity style={styles.deviceSecondaryButton} onPress={onSecondaryAction}>
+          <Text style={styles.deviceSecondaryButtonText}>{secondaryActionLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -1433,6 +1812,25 @@ const styles = StyleSheet.create({
     fontFamily: 'Ubuntu_400Regular',
     color: COLORS.textSub,
   },
+  firmwareTrackingBanner: {
+    marginTop: 14,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#eff6ff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  firmwareTrackingBannerText: {
+    flex: 1,
+    fontFamily: 'Ubuntu_500Medium',
+    fontSize: 13,
+    color: COLORS.primaryDark,
+  },
   subsectionTitle: {
     marginTop: 10,
     marginBottom: 10,
@@ -1523,6 +1921,17 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontFamily: 'Ubuntu_500Medium',
   },
+  deviceSecondaryButton: {
+    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  deviceSecondaryButtonText: {
+    color: COLORS.danger,
+    fontFamily: 'Ubuntu_500Medium',
+    fontSize: 13,
+  },
   emptyState: {
     borderRadius: 16,
     borderWidth: 1,
@@ -1563,5 +1972,117 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: COLORS.textSub,
     fontFamily: 'Ubuntu_400Regular',
+  },
+
+  // ── Liens documentation ──
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+  },
+
+  // ── Carte développeur ──
+  devCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  devLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  devAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#1f2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  devName: {
+    fontFamily: 'Ubuntu_700Bold',
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  devRole: {
+    fontFamily: 'Ubuntu_400Regular',
+    fontSize: 12,
+    color: COLORS.textSub,
+    marginTop: 2,
+  },
+  devHandle: {
+    fontFamily: 'Ubuntu_500Medium',
+    fontSize: 12,
+    color: COLORS.primary,
+    marginTop: 1,
+  },
+
+  // ── Seuils d'alertes ──
+  thresholdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  thresholdLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Ubuntu_500Medium',
+    color: COLORS.text,
+  },
+  thresholdControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  thresholdBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thresholdBtnDisabled: {
+    backgroundColor: COLORS.border,
+  },
+  thresholdBtnText: {
+    fontSize: 18,
+    color: '#fff',
+    fontFamily: 'Ubuntu_700Bold',
+    lineHeight: 22,
+  },
+  thresholdValue: {
+    minWidth: 60,
+    textAlign: 'center',
+    fontSize: 15,
+    fontFamily: 'Ubuntu_700Bold',
+    color: COLORS.text,
+  },
+  resetThresholdsBtn: {
+    marginTop: 14,
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+  },
+  resetThresholdsBtnText: {
+    fontSize: 13,
+    fontFamily: 'Ubuntu_500Medium',
+    color: COLORS.danger,
   },
 });

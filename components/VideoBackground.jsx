@@ -5,7 +5,7 @@ import { StyleSheet, View, AppState } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 // Assurez-vous que le chemin est correct selon votre structure
-const videoSource = require('../assets/videos/authvid_nobars.mp4'); 
+const videoSource = require('../assets/onboarding/auth-background.mp4'); 
 
 export default function VideoBackground() {
   const appState = useRef(AppState.currentState);

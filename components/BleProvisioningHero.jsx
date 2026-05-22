@@ -3,8 +3,8 @@ import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-nativ
 import LottieView from 'lottie-react-native';
 import { BluetoothSearching, CheckCircle2, Router } from 'lucide-react-native';
 
-const bleAnimation       = require('../assets/lottie/ble-connection.json');
-const connectedAnimation = require('../assets/lottie/Connected.json');
+const bleAnimation       = require('../assets/animations/ble-connection.json');
+const connectedAnimation = require('../assets/animations/connected.json');
 
 // ── FadeSlide ─────────────────────────────────────────────────────────────────
 function FadeSlide({ children, style }) {

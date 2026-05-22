@@ -14,7 +14,7 @@ import { Droplets, Activity, Waves, Battery, ThermometerSun, MapPin } from 'luci
 import { getScoreColor, getScoreGradient, getScoreLabel } from '../api/telemetryClient';
 import MeshGradientBg from './MeshGradientBg';
 
-const buoyImage = require('../assets/3D_EauSure.png');
+const buoyImage = require('../assets/branding/buoy-3d.png');
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
