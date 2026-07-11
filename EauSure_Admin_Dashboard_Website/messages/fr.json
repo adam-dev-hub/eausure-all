@@ -1,0 +1,998 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "discard": "Annuler",
+    "loading": "Chargement...",
+    "language": "Langue",
+    "keepMeSignedInFor30Days": "Garder ma session active pendant 30 jours",
+    "localeNames": {
+      "fr": "Français",
+      "en": "Anglais",
+      "ar": "Arabe"
+    },
+    "unsavedChanges": "Modifications non enregistrées",
+    "allChangesSaved": "Toutes les modifications enregistrées"
+  },
+  "app": {
+    "title": "Surveillance de l'eau",
+    "subtitle": "Plateforme IoT"
+  },
+  "navigation": {
+    "overview": "Aperçu",
+    "wells": "Puits et réservoirs",
+    "alerts": "Alertes",
+    "devices": "Gestion des appareils",
+    "gateway": "Passerelle",
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "updates": "Mises à jour",
+    "support": "Support",
+    "collapse": "Réduire",
+    "signOut": "Se déconnecter"
+  },
+  "userMenu": {
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "signOut": "Se déconnecter",
+    "anonymous": "Utilisateur"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "kpi": {
+      "waterStatus": "État de l'eau",
+      "activeAlerts": "Alertes actives",
+      "gatewaysOnline": "Passerelles en ligne",
+      "avgBatteryLife": "Durée de vie moyenne de la batterie",
+      "noWells": "Aucun puits configuré",
+      "noAlerts": "Aucune alerte",
+      "noGateways": "Aucune passerelle configurée",
+      "noData": "Aucune donnée disponible",
+      "activeDevices": "Active Devices",
+      "batteryHealth": "Battery Health"
+    },
+    "setup": {
+      "title": "Configuration du système requise",
+      "description": "Configurez votre système de surveillance IoT pour commencer",
+      "noDevices": "Aucun appareil n'a encore été configuré. Pour commencer à surveiller la qualité de l'eau :",
+      "step1": "Déployer des nœuds de capteurs flottants dans les puits/réservoirs",
+      "step2": "Configurer des passerelles LoRaWAN pour la connectivité réseau",
+      "step3": "Enregistrer les appareils dans la configuration du système",
+      "step4": "Calibrer les capteurs de pH et TDS"
+    },
+    "description": "Visualize live readings, history, and system performance.",
+    "eyebrow": {
+      "overview": "EauSure ? Overview"
+    },
+    "labels": {
+      "quality": "quality",
+      "readingSummary": "Reading pH {ph}, TDS {tds}",
+      "trendWindow": "Trend window",
+      "timeline": "Timeline",
+      "history": "History"
+    },
+    "live": {
+      "paused": "Auto-refresh paused",
+      "mqtt": "Live source: MQTT",
+      "polling": "Refreshing every {seconds}s",
+      "unavailableTitle": "Live data unavailable - showing last known readings",
+      "unavailableDescription": "MQTT and polling are both unavailable. We will keep the last readings visible while we reconnect."
+    },
+    "connection": {
+      "connecting": "Connecting",
+      "mqtt": "MQTT connected",
+      "polling": "Polling fallback",
+      "offline": "Offline",
+      "error": "Connection issue"
+    },
+    "actions": {
+      "refreshLatest": "Refresh latest",
+      "refreshHistory": "Refresh history",
+      "retry": "Retry"
+    },
+    "states": {
+      "loading": "Loading live dashboard data...",
+      "emptyHistory": "No sensor readings yet."
+    },
+    "ranges": {
+      "month": "Month",
+      "week": "Week",
+      "hour": "Hour"
+    },
+    "status": {
+      "stable": "Stable",
+      "warning": "Warning",
+      "critical": "Critical",
+      "noData": "No data",
+      "normal": "Normal"
+    },
+    "columns": {
+      "timestamp": "Timestamp",
+      "event": "Event",
+      "status": "Status"
+    },
+    "errors": {
+      "loadDashboard": "Failed to load dashboard data.",
+      "api": {
+        "badRequest": "The request could not be completed. Please check your filters and try again.",
+        "sessionExpired": "Your session has expired. Please sign in again.",
+        "forbidden": "You don't have permission to access this data.",
+        "notFound": "No data found for your account.",
+        "rateLimited": "Too many requests. Please wait a moment and try again.",
+        "server": "The server encountered an error. Please try again later.",
+        "unavailable": "The service is temporarily unavailable. Please try again in a moment.",
+        "network": "Unable to reach the server. Check your internet connection.",
+        "timeout": "The request took too long to respond.",
+        "generic": "Something went wrong. Please try again."
+      }
+    }
+  },
+  "profile": {
+    "title": "Profil",
+    "description": "Gérez les informations de votre compte et vos préférences",
+    "personalInfo": "Informations personnelles",
+    "personalInfoDescription": "Mettez à jour les détails de base de votre compte",
+    "fullName": "Nom complet",
+    "fullNamePlaceholder": "Entrez votre nom complet",
+    "email": "Adresse e-mail",
+    "emailDescription": "Géré par votre fournisseur d'authentification",
+    "phone": "Numéro de téléphone",
+    "phonePlaceholder": "+33 6 00 00 00 00",
+    "phoneDescription": "Utilisé pour les alertes SMS et l'authentification à deux facteurs",
+    "location": "Localisation",
+    "locationPlaceholder": "Ville, Pays",
+    "locationDescription": "Aide à personnaliser votre expérience",
+    "accountSettings": "Paramètres du compte",
+    "accountSettingsDescription": "Configuration supplémentaire du compte",
+    "company": "Entreprise/Organisation",
+    "companyPlaceholder": "Nom de votre organisation",
+    "companyDescription": "Optionnel - pour les comptes professionnels",
+    "role": "Rôle",
+    "roleDescription": "Votre poste ou responsabilité",
+    "roles": {
+      "admin": "Administrateur système",
+      "operator": "Opérateur",
+      "viewer": "Observateur"
+    },
+    "actionBar": {
+      "unsavedMessage": "Vous avez modifié votre profil. Enregistrez ou annulez les modifications pour continuer.",
+      "savedMessage": "Votre profil est à jour."
+    },
+    "eyebrow": "EauSure ? Profile",
+    "sections": {
+      "identity": "Identity"
+    },
+    "avatar": {
+      "title": "Profile Picture",
+      "description": "Choose from suggested avatars or provide your own image"
+    },
+    "bio": "Bio",
+    "bioPlaceholder": "Tell us about yourself...",
+    "bioDescription": "Brief description for your profile (max 500 characters)",
+    "rolePlaceholder": "Your job title"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "description": "Gérez vos préférences d'application, notifications et unités système",
+    "tabs": {
+      "regional": "Régional",
+      "notifications": "Notifications",
+      "units": "Unités"
+    },
+    "regional": {
+      "title": "Localisation",
+      "description": "Configurez vos préférences de fuseau horaire et de langue",
+      "timezone": "Fuseau horaire",
+      "timezoneDescription": "Tous les horodatages seront affichés dans ce fuseau horaire",
+      "language": "Langue de l'interface",
+      "languageDescription": "Sélectionnez votre langue préférée",
+      "theme": "Theme",
+      "themeDescription": "Choisissez l'apparence de l'interface pour cette session et vos prochaines connexions",
+      "themeSystem": "Systeme",
+      "themeLight": "Clair",
+      "themeDark": "Sombre"
+    },
+    "notifications": {
+      "title": "Préférences d'alerte",
+      "description": "Contrôlez comment et quand vous recevez les notifications système",
+      "emailAlerts": "Alertes par e-mail",
+      "emailAlertsDescription": "Recevez des notifications par e-mail pour les alertes de qualité de l'eau et les changements d'état des appareils",
+      "criticalOnly": "Alertes critiques uniquement",
+      "criticalOnlyDescription": "Recevoir uniquement les notifications pour les problèmes critiques (détection de chute, contamination sévère)",
+      "dailySummary": "Résumé quotidien",
+      "dailySummaryDescription": "Recevez un e-mail quotidien avec l'état du système, les mesures de qualité de l'eau et la santé des appareils",
+      "maintenanceReminders": "Rappels de maintenance",
+      "maintenanceRemindersDescription": "Recevez des rappels pour l'étalonnage des capteurs, les cycles anti-encrassement et les remplacements de batterie",
+      "browserNotifications": "Activer les notifications du navigateur pour les alertes critiques",
+      "browserNotificationsDescription": "Demande a ce navigateur d'afficher une notification lorsqu'une nouvelle alerte critique arrive.",
+      "browserUnsupported": "Ce navigateur ne prend pas en charge les notifications.",
+      "browserGranted": "Notifications du navigateur activees.",
+      "browserDenied": "Les notifications sont bloquees. Activez-les dans les parametres du navigateur pour utiliser cette option.",
+      "alertSound": "Jouer un son pour les alertes critiques",
+      "alertSoundDescription": "Joue un court signal sonore dans ce navigateur lorsqu'une alerte critique arrive.",
+      "testSound": "Tester le son",
+      "alertThreshold": "Afficher les alertes de priorite",
+      "alertThresholdDescription": "Filtre uniquement l'affichage de la liste des alertes, sans modifier les donnees stockees ou recuperees.",
+      "permission": {
+        "granted": "Accorde",
+        "denied": "Refuse",
+        "default": "Non demande",
+        "unsupported": "Indisponible"
+      },
+      "thresholds": {
+        "all": "Toutes les priorites",
+        "medium": "Moyenne et plus",
+        "high": "Haute et plus",
+        "critical": "Critique uniquement"
+      }
+    },
+    "units": {
+      "title": "Unités de mesure",
+      "description": "Configurez les unités d'affichage pour les relevés de capteurs et les mesures système",
+      "temperature": "Échelle de température",
+      "temperatureDescription": "Utilisé pour les relevés de température ambiante et de l'eau",
+      "distance": "Distance et profondeur",
+      "distanceDescription": "Utilisé pour les mesures de profondeur de puits et de distance",
+      "note": "Remarque :",
+      "noteText": "Les mesures de qualité de l'eau (pH, TDS) sont affichées en unités standard quels que soient ces paramètres.",
+      "volume": "Unite de volume",
+      "volumeDescription": "Utilisee pour les volumes d'eau affiches par le tableau de bord.",
+      "celsius": "Celsius",
+      "fahrenheit": "Fahrenheit",
+      "liters": "Litres",
+      "gallons": "Gallons"
+    },
+    "actionBar": {
+      "unsavedMessage": "Vous avez modifié vos paramètres. Enregistrez ou annulez les modifications pour continuer.",
+      "savedMessage": "Vos paramètres sont à jour."
+    },
+    "timezone": "Fuseau horaire",
+    "timezoneRegions": {
+      "africa": "Afrique",
+      "europe": "Europe",
+      "america": "Amerique",
+      "asia": "Asie",
+      "australiaPacific": "Australie et Pacifique",
+      "universal": "Universel"
+    },
+    "toasts": {
+      "saved": "Parametres enregistres."
+    },
+    "sections": {
+      "appearance": "Apparence",
+      "alerts": "Notifications et alertes",
+      "privacy": "Confidentialite et session",
+      "dashboard": "Comportement du tableau de bord",
+      "accessibility": "Accessibilite",
+      "danger": "Zone sensible"
+    },
+    "customizedSingular": "personnalise",
+    "customizedPlural": "personnalises",
+    "unsaved": "Modifications non enregistrees",
+    "appearance": {
+      "compactMode": "Mode compact",
+      "compactModeDescription": "Reduit les espacements et la taille du texte pour afficher plus d'informations.",
+      "sidebarDefaultCollapsed": "Demarrer avec la barre laterale repliee",
+      "sidebarDefaultCollapsedDescription": "Utilise cet etat pour les nouvelles sessions du tableau de bord.",
+      "dateFormat": "Format de date",
+      "dateFormatDescription": "Choisissez le format des dates dans les tableaux et historiques.",
+      "timeFormat": "Utiliser l'heure sur 24 heures",
+      "timeFormatDescription": "Desactivez pour utiliser l'heure sur 12 heures avec AM/PM."
+    },
+    "privacy": {
+      "sessionTimeout": "Me deconnecter automatiquement apres",
+      "sessionTimeoutDescription": "Ferme la session apres une periode d'inactivite. Toute activite reinitialise le compteur.",
+      "neverWarning": "Ne jamais se deconnecter automatiquement n'est pas recommande sur un appareil partage.",
+      "presenceVisible": "Afficher mon statut en ligne aux administrateurs",
+      "presenceVisibleDescription": "Lorsque cette option est desactivee, les administrateurs vous verront hors ligne meme si vous etes actif.",
+      "loginHistory": "Connexions recentes",
+      "loginHistoryDescription": "Ceci est affiche pour votre securite. Le contexte de localisation vient du fuseau horaire enregistre.",
+      "noLoginHistory": "Aucune connexion recente enregistree.",
+      "timeout": {
+        "30": "30 minutes d'inactivite",
+        "60": "1 heure",
+        "120": "2 heures",
+        "240": "4 heures",
+        "never": "Jamais"
+      }
+    },
+    "dashboardBehavior": {
+      "refreshRate": "Frequence d'actualisation des capteurs",
+      "refreshRateDescription": "Choisissez la frequence de rafraichissement des mesures en direct.",
+      "defaultTab": "Quand j'ouvre le tableau de bord, afficher",
+      "defaultTabDescription": "Fait defiler le tableau de bord vers la section preferee.",
+      "refresh": {
+        "5": "Toutes les 5 secondes",
+        "10": "Toutes les 10 secondes",
+        "30": "Toutes les 30 secondes",
+        "manual": "Manuel uniquement"
+      },
+      "tabs": {
+        "overview": "Apercu",
+        "live": "Donnees capteurs en direct",
+        "alerts": "Alertes",
+        "devices": "Appareils"
+      }
+    },
+    "accessibility": {
+      "reducedMotion": "Reduire les animations",
+      "reducedMotionDescription": "Reduit les effets de mouvement en plus du reglage du systeme.",
+      "highContrast": "Augmenter le contraste",
+      "highContrastDescription": "Renforce les bordures et les textes secondaires pour une meilleure lisibilite.",
+      "fontSize": "Taille du texte",
+      "fontSizeDescription": "Ajuste la taille de base du texte dans le tableau de bord.",
+      "font": {
+        "sm": "Petit",
+        "md": "Moyen",
+        "lg": "Grand"
+      }
+    },
+    "danger": {
+      "password": "Mot de passe",
+      "passwordDescription": "Utilisez le flux de reinitialisation pour changer votre mot de passe en securite.",
+      "passwordLink": "Changer le mot de passe"
+    }
+  },
+  "admin": {
+    "title": "Tableau de bord administrateur",
+    "description": "Administration centralisée pour les utilisateurs, les opérations, le déploiement et les diagnostics.",
+    "manageUsers": {
+      "title": "Gérer les utilisateurs",
+      "description": "Examinez les comptes d'utilisateurs, les attributions de rôles et le contrôle d'accès.",
+      "workspace": "Espace de travail de gestion des utilisateurs réservé aux administrateurs",
+      "action": "Utilisez cette page pour gérer les comptes, les attributions de rôles et les décisions d'accès."
+    },
+    "superviseSystem": {
+      "title": "Superviser le système",
+      "description": "Suivez l'état du système et les indicateurs de santé opérationnelle.",
+      "workspace": "Espace de travail de supervision système réservé aux administrateurs",
+      "action": "Surveillez les performances du système, l'utilisation des ressources et les mesures opérationnelles."
+    },
+    "deployUpdates": {
+      "title": "Déployer les mises à jour",
+      "description": "Coordonnez les déploiements et surveillez les déploiements de mises à jour.",
+      "workspace": "Espace de travail de déploiement réservé aux administrateurs",
+      "action": "Planifiez les versions, déclenchez les déploiements de mises à jour et validez la préparation au déploiement."
+    },
+    "diagnoseProblems": {
+      "title": "Diagnostiquer les problèmes",
+      "description": "Enquêter sur les incidents et exécuter les procédures de diagnostic.",
+      "workspace": "Espace de travail de diagnostic réservé aux administrateurs",
+      "action": "Enquêter sur les incidents, exécuter les diagnostics système et résoudre les problèmes techniques."
+    },
+    "maintenance": {
+      "title": "Maintenir le système",
+      "description": "Planification, journal et déclaration des nouvelles versions firmware."
+    }
+  },
+  "manageUsers": {
+    "title": "Gérer les utilisateurs",
+    "description": "Recherchez, filtrez et gérez les accès des utilisateurs de la plateforme.",
+    "searchPlaceholder": "Rechercher par nom ou e-mail...",
+    "filterRole": "Filtrer par rôle",
+    "filterStatus": "Filtrer par statut",
+    "allRoles": "Tous les rôles",
+    "allStatuses": "Tous les statuts",
+    "columns": {
+      "user": "Utilisateur",
+      "email": "E-mail",
+      "role": "Rôle",
+      "status": "Statut",
+      "presence": "Présence",
+      "createdAt": "Créé le",
+      "actions": "Actions"
+    },
+    "roles": {
+      "admin": "Administrateur",
+      "operator": "Opérateur"
+    },
+    "statuses": {
+      "active": "Actif",
+      "suspended": "Suspendu"
+    },
+    "actions": {
+      "changeRole": "Changer le rôle",
+      "suspend": "Suspendre",
+      "reactivate": "Réactiver",
+      "delete": "Supprimer l'utilisateur"
+    },
+    "dialog": {
+      "deleteTitle": "Supprimer cet utilisateur ?",
+      "suspendTitle": "Suspendre cet utilisateur ?",
+      "reactivateTitle": "Réactiver cet utilisateur ?",
+      "changeRoleTitle": "Changer le rôle de cet utilisateur ?"
+    },
+    "confirmDelete": "Cette action supprimera définitivement {name} du système.",
+    "confirmSuspend": "{name} perdra l'accès jusqu'à sa réactivation.",
+    "confirmReactivate": "{name} retrouvera l'accès immédiatement.",
+    "confirmPromote": "{name} recevra un accès administrateur.",
+    "confirmDemote": "{name} sera limité à un accès opérateur.",
+    "cannotEditSelf": "Vous ne pouvez pas modifier votre propre compte.",
+    "noUsers": "Aucun utilisateur trouvé.",
+    "error": "Impossible de charger les utilisateurs.",
+    "retry": "Réessayer",
+    "refresh": "Actualiser",
+    "cancel": "Annuler",
+    "working": "Traitement...",
+    "phone": "Téléphone",
+    "address": "Adresse",
+    "iotNodes": "Nœuds IoT",
+    "nodes": "nœuds",
+    "node": "nœud",
+    "notProvided": "Non renseigné",
+    "expandUser": "Afficher les détails",
+    "collapseUser": "Masquer les détails",
+    "showing": "Affichage de {count} sur {total} utilisateurs",
+    "toast": {
+      "deleted": "Utilisateur supprimé avec succès.",
+      "roleUpdated": "Rôle utilisateur mis à jour.",
+      "statusUpdated": "Statut utilisateur mis à jour."
+    }
+  },
+  "presence": {
+    "online": "Actif maintenant",
+    "away": "Absent",
+    "offline": "Hors ligne",
+    "never": "Jamais actif",
+    "justNow": "À l'instant",
+    "minutesAgo": "{count}m",
+    "hoursAgo": "{count}h"
+  },
+  "alerts": {
+    "title": "Alertes",
+    "description": "Suivez les événements critiques, les avertissements et les informations.",
+    "feed": "Flux d'alertes",
+    "feedDescription": "Dernières alertes détectées sur vos appareils",
+    "criticalAlerts": "Alertes critiques",
+    "warnings": "Avertissements",
+    "totalActive": "Total actif",
+    "columns": {
+      "id": "ID",
+      "type": "Type",
+      "severity": "Sévérité",
+      "device": "Appareil",
+      "message": "Message",
+      "time": "Heure"
+    },
+    "criticalRatio": "Critical Ratio",
+    "actions": {
+      "refresh": "Refresh alerts",
+      "retry": "Retry"
+    },
+    "states": {
+      "loading": "Loading alerts...",
+      "empty": "No alerts found."
+    },
+    "errors": {
+      "load": "Failed to load alerts.",
+      "api": {
+        "badRequest": "The request could not be completed. Please check your filters and try again.",
+        "sessionExpired": "Your session has expired. Please sign in again.",
+        "forbidden": "You don't have permission to access this data.",
+        "notFound": "No data found for your account.",
+        "rateLimited": "Too many requests. Please wait a moment and try again.",
+        "server": "The server encountered an error. Please try again later.",
+        "unavailable": "The service is temporarily unavailable. Please try again in a moment.",
+        "network": "Unable to reach the server. Check your internet connection.",
+        "timeout": "The request took too long to respond.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "sections": {
+      "monitoring": "Monitoring"
+    },
+    "eyebrow": "EauSure ? Alerts",
+    "notificationTitle": "EauSure Alert",
+    "severity": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "info": "Info"
+    }
+  },
+  "wells": {
+    "title": "Puits et réservoirs",
+    "description": "Aucun site de surveillance configuré",
+    "empty": "Aucun puits configuré",
+    "instruction": "Déployez des nœuds de capteurs flottants dans vos puits et réservoirs, puis enregistrez-les dans le système pour commencer à surveiller les paramètres de qualité de l'eau.",
+    "eyebrow": "EauSure ? Wells",
+    "actions": {
+      "refresh": "Refresh wells",
+      "retry": "Retry"
+    },
+    "metrics": {
+      "total": "Monitoring Sites",
+      "stable": "Stable",
+      "warning": "Warnings",
+      "critical": "Critical"
+    },
+    "sections": {
+      "monitoring": "Monitoring",
+      "wells": "Wells & Reservoirs"
+    },
+    "states": {
+      "loading": "Loading wells..."
+    },
+    "labels": {
+      "gateway": "Gateway",
+      "ph": "pH",
+      "tds": "TDS",
+      "temperature": "Temperature",
+      "battery": "Battery",
+      "lastReading": "Last reading"
+    },
+    "status": {
+      "stable": "Stable",
+      "warning": "Warning",
+      "critical": "Critical"
+    },
+    "errors": {
+      "load": "Failed to load monitoring sites.",
+      "api": {
+        "badRequest": "The request could not be completed. Please check your filters and try again.",
+        "sessionExpired": "Your session has expired. Please sign in again.",
+        "forbidden": "You don't have permission to access this data.",
+        "notFound": "No data found for your account.",
+        "rateLimited": "Too many requests. Please wait a moment and try again.",
+        "server": "The server encountered an error. Please try again later.",
+        "unavailable": "The service is temporarily unavailable. Please try again in a moment.",
+        "network": "Unable to reach the server. Check your internet connection.",
+        "timeout": "The request took too long to respond.",
+        "generic": "Something went wrong. Please try again."
+      }
+    }
+  },
+  "updates": {
+    "title": "Mises à jour du firmware des appareils",
+    "description": "Gérez et déployez les mises à jour du firmware sur vos appareils",
+    "firmware": "Gestion du firmware",
+    "columns": {
+      "device": "Appareil",
+      "current": "Version actuelle",
+      "available": "Version disponible",
+      "status": "Statut",
+      "lastCheck": "Dernier contrôle"
+    },
+    "statuses": {
+      "updateAvailable": "Mise à jour disponible",
+      "upToDate": "À jour",
+      "pending": "En attente"
+    },
+    "eyebrow": "EauSure ? Updates",
+    "actions": {
+      "check": "Check Updates"
+    },
+    "metrics": {
+      "totalDevices": "Total Devices"
+    },
+    "sections": {
+      "releases": "Releases",
+      "status": "Firmware Update Status"
+    },
+    "sample": {
+      "todayAt": "Today, {time}",
+      "yesterdayAt": "Yesterday, {time}"
+    }
+  },
+  "devices": {
+    "title": "Gestion des appareils",
+    "description": "Gérez vos appareils et capteurs IoT",
+    "eyebrow": "EauSure ? Devices",
+    "actions": {
+      "refresh": "Refresh devices",
+      "measure": "Measure",
+      "measuring": "Measuring...",
+      "retry": "Retry"
+    },
+    "metrics": {
+      "connected": "Connected",
+      "gateways": "Gateways",
+      "firmware": "Firmware Versions",
+      "signal": "Signal"
+    },
+    "labels": {
+      "linked": "linked",
+      "versions": "versions",
+      "average": "average"
+    },
+    "sections": {
+      "monitoring": "Monitoring",
+      "nodes": "Node Management"
+    },
+    "states": {
+      "loading": "Loading devices...",
+      "noData": "No data",
+      "empty": "No Devices Configured",
+      "emptyDescription": "Pair nodes with a linked gateway to start managing devices.",
+      "never": "Never"
+    },
+    "columns": {
+      "node": "Node",
+      "gateway": "Gateway",
+      "status": "Status",
+      "firmware": "Firmware",
+      "signal": "Signal",
+      "lastSeen": "Last seen",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "errors": {
+      "load": "Failed to load devices.",
+      "measure": "Failed to trigger measurement.",
+      "api": {
+        "badRequest": "The request could not be completed. Please check your filters and try again.",
+        "sessionExpired": "Your session has expired. Please sign in again.",
+        "forbidden": "You don't have permission to access this data.",
+        "notFound": "No data found for your account.",
+        "rateLimited": "Too many requests. Please wait a moment and try again.",
+        "server": "The server encountered an error. Please try again later.",
+        "unavailable": "The service is temporarily unavailable. Please try again in a moment.",
+        "network": "Unable to reach the server. Check your internet connection.",
+        "timeout": "The request took too long to respond.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "toasts": {
+      "measureQueued": "Measurement request sent."
+    }
+  },
+  "gateway": {
+    "title": "Passerelle",
+    "description": "Gérez votre connectivité de passerelle LoRaWAN",
+    "eyebrow": "EauSure ? Gateway",
+    "metrics": {
+      "total": "Total Gateways",
+      "online": "Online",
+      "connectedNodes": "Connected Nodes",
+      "averageRssi": "Average RSSI"
+    },
+    "actions": {
+      "refresh": "Refresh gateways",
+      "retry": "Retry"
+    },
+    "states": {
+      "loading": "Loading gateways...",
+      "noData": "No data",
+      "empty": "No Gateways Configured",
+      "emptyDescription": "Link a gateway to display connectivity, nodes, signal, and configuration.",
+      "never": "Never",
+      "emptyNodes": "No nodes paired with this gateway yet."
+    },
+    "sections": {
+      "infrastructure": "Infrastructure",
+      "gateways": "Gateways",
+      "config": "Gateway Config",
+      "nodes": "Nodes"
+    },
+    "columns": {
+      "gateway": "Gateway",
+      "status": "Status",
+      "signal": "Signal",
+      "lastSeen": "Last seen"
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "config": {
+      "measureInterval": "Measure interval",
+      "shakeEnabled": "Shake detection",
+      "shakeThreshold": "Shake threshold",
+      "units": "Units"
+    },
+    "common": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "errors": {
+      "load": "Failed to load gateways.",
+      "loadNodes": "Failed to load gateway nodes.",
+      "api": {
+        "badRequest": "The request could not be completed. Please check your filters and try again.",
+        "sessionExpired": "Your session has expired. Please sign in again.",
+        "forbidden": "You don't have permission to access this data.",
+        "notFound": "No data found for your account.",
+        "rateLimited": "Too many requests. Please wait a moment and try again.",
+        "server": "The server encountered an error. Please try again later.",
+        "unavailable": "The service is temporarily unavailable. Please try again in a moment.",
+        "network": "Unable to reach the server. Check your internet connection.",
+        "timeout": "The request took too long to respond.",
+        "generic": "Something went wrong. Please try again."
+      }
+    }
+  },
+  "superviseSystem": {
+    "title": "Superviser le système",
+    "totalNodes": "Nœuds totaux",
+    "activeNow": "Actifs maintenant",
+    "inactive": "Inactifs",
+    "uniqueOwners": "Propriétaires uniques",
+    "searchPlaceholder": "Rechercher par ID nœud, propriétaire ou localisation...",
+    "filters": {
+      "status": "Statut",
+      "firmware": "Firmware",
+      "all": "Tous",
+      "allFirmware": "Tous les firmwares"
+    },
+    "columns": {
+      "nodeId": "ID nœud",
+      "owner": "Propriétaire",
+      "location": "Localisation",
+      "firmware": "Firmware",
+      "status": "Statut",
+      "lastSeen": "Dernière activité"
+    },
+    "statuses": {
+      "active": "Actif",
+      "inactive": "Inactif"
+    },
+    "time": {
+      "justNow": "À l'instant",
+      "minutesAgo": "il y a {count} min",
+      "hoursAgo": "il y a {count} h"
+    },
+    "deviceIdLabel": "ID appareil",
+    "locationPlaceholder": "Puits A - Champ Nord",
+    "never": "Jamais",
+    "noNodes": "Aucun nœud trouvé",
+    "editNode": "Modifier le nœud",
+    "viewData": "Voir les données capteur",
+    "errors": {
+      "load": "Impossible de charger les nœuds.",
+      "save": "Impossible d'enregistrer les modifications du nœud."
+    },
+    "toasts": {
+      "saved": "Nœud mis à jour avec succès."
+    }
+  },
+  "deployUpdates": {
+    "title": "Déployer les mises à jour firmware",
+    "uploadSection": "Téléverser un nouveau firmware",
+    "dropzone": "Déposez un fichier .bin ici ou cliquez pour parcourir",
+    "onlyBin": "Seuls les fichiers .bin sont acceptés",
+    "version": "Version",
+    "changelog": "Journal des modifications",
+    "changelogPlaceholder": "Décrivez les changements de cette version...",
+    "uploadBtn": "Téléverser le firmware",
+    "releases": "Versions publiées",
+    "noReleases": "Aucune version firmware pour le moment",
+    "downloads": "téléchargements",
+    "uploadedBy": "Téléversé par",
+    "delete": "Supprimer la version",
+    "deleteConfirm": "Cette action supprimera définitivement cette version firmware et son fichier.",
+    "download": "Télécharger",
+    "showMore": "Afficher plus",
+    "showLess": "Afficher moins",
+    "errors": {
+      "load": "Impossible de charger les versions firmware.",
+      "upload": "Impossible de téléverser le firmware.",
+      "delete": "Impossible de supprimer la version firmware.",
+      "invalidFile": "Seuls les fichiers .bin sont autorisés.",
+      "fileRequired": "Veuillez sélectionner un fichier firmware.",
+      "versionRequired": "La version est obligatoire."
+    },
+    "toasts": {
+      "uploaded": "Firmware téléversé avec succès.",
+      "deleted": "Version firmware supprimée avec succès."
+    }
+  },
+  "support": {
+    "title": "Support et rapports de bugs",
+    "back": "Retour",
+    "pageTitle": "Comment pouvons-nous vous aider ?",
+    "pageSubtitle": "Nous sommes la pour vous accompagner a chaque etape.",
+    "submitTicket": "Soumettre un ticket",
+    "myTickets": "Mes tickets",
+    "form": {
+      "title": "Titre",
+      "titlePlaceholder": "Bref résumé du problème",
+      "description": "Description",
+      "descriptionPlaceholder": "Décrivez le problème en détail",
+      "category": "Catégorie",
+      "priority": "Priorité",
+      "submit": "Envoyer le ticket"
+    },
+    "categories": {
+      "bug": "Bug",
+      "device": "Appareil",
+      "gateway": "Passerelle",
+      "alert": "Alerte",
+      "other": "Autre"
+    },
+    "priorities": {
+      "low": "Faible",
+      "medium": "Moyenne",
+      "high": "Élevée",
+      "critical": "Critique"
+    },
+    "statuses": {
+      "open": "Ouvert",
+      "in_progress": "En cours",
+      "resolved": "Résolu",
+      "closed": "Fermé"
+    },
+    "searchPlaceholder": "Rechercher par titre ou ID du ticket...",
+    "filters": {
+      "status": "Statut",
+      "category": "Catégorie",
+      "priority": "Priorité",
+      "allStatuses": "Tous les statuts",
+      "allCategories": "Toutes les catégories",
+      "allPriorities": "Toutes les priorités"
+    },
+    "columns": {
+      "ticket": "Ticket",
+      "user": "Utilisateur",
+      "category": "Catégorie",
+      "priority": "Priorité",
+      "status": "Statut",
+      "createdAt": "Créé",
+      "actions": "Actions"
+    },
+    "actions": {
+      "viewDetails": "Voir les détails",
+      "changeStatus": "Modifier le statut",
+      "editNote": "Modifier la note",
+      "delete": "Supprimer"
+    },
+    "dialog": {
+      "noteTitle": "Note administrateur",
+      "noteDescription": "Mettre à jour la note interne de ce ticket.",
+      "deleteTitle": "Supprimer le ticket ?"
+    },
+    "showing": "Affichage de {count} sur {total} tickets",
+    "noTickets": "Aucun ticket trouvé",
+    "error": "Impossible de charger les tickets.",
+    "adminNote": "Note administrateur",
+    "deleteConfirm": "Cette action supprimera définitivement ce ticket.",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "prev": "Précédent",
+    "next": "Suivant",
+    "refresh": "Actualiser",
+    "labels": {
+      "category": "Catégorie",
+      "priority": "Priorité",
+      "submitted": "Soumis le",
+      "description": "Description"
+    },
+    "landing": {
+      "title": "Comment pouvons-nous aider ?",
+      "subtitle": "Choisissez une option ci-dessous",
+      "newTicket": "Soumettre un ticket",
+      "newTicketDesc": "Signaler un bug ou un problème système",
+      "myTickets": "Mes tickets",
+      "myTicketsDesc": "Suivez vos demandes envoyées",
+      "liveChat": "Chat en direct",
+      "liveChatDesc": "Discutez avec un administrateur disponible"
+    },
+    "chat": {
+      "title": "Chat en direct",
+      "available": "Un administrateur est en ligne",
+      "availableWithName": "{name} est en ligne",
+      "unavailable": "Aucun administrateur n'est actuellement en ligne",
+      "unavailableHint": "Soumettez un ticket et nous reviendrons vers vous.",
+      "placeholder": "Tapez votre message...",
+      "send": "Envoyer",
+      "agentName": "Agent de support",
+      "you": "Vous",
+      "empty": "Commencez la conversation en envoyant un message.",
+      "requestAcceptedHint": "Support Agent will respond when your request is accepted.",
+      "requestTitle": "Request a live chat",
+      "requestDescription": "Enter a short subject or reason so Support Agent can route your request.",
+      "reasonPlaceholder": "Example: Sensor readings are inconsistent after reconnecting the gateway",
+      "submitRequest": "Submit Request",
+      "beforeStart": "Before you start",
+      "queueHint": "Live chat is queued in the order requests are received.",
+      "filterHint": "Bad words are filtered before messages are sent.",
+      "ticketFallbackHint": "You can continue using tickets if the chat is paused or ended.",
+      "reasonSubject": "Reason / Subject",
+      "statusWaitingAgent": "Waiting for Support Agent",
+      "statusConnected": "Support Agent is connected",
+      "statusSuspended": "Chat suspended",
+      "statusEnded": "Chat ended",
+      "adminTyping": "Admin is typing...",
+      "queueEmpty": "Your request is in the queue. Messages will appear once Support Agent accepts it.",
+      "startConversation": "Start the conversation with Support Agent.",
+      "statusTitle": "Live chat status",
+      "waitingDescription": "Support Agent has not accepted this chat yet.",
+      "suspendedDescription": "Messaging is paused until Support Agent resumes the chat.",
+      "endedDescription": "This conversation has ended.",
+      "activeDescription": "You can send messages now.",
+      "messageTitle": "Message",
+      "lockedHint": "This chat is locked by Support Agent.",
+      "typingSharedHint": "Typing is shared with Support Agent.",
+      "acceptedOnlyHint": "Messages can only be sent after the chat is accepted."
+    },
+    "adminChat": {
+      "title": "Conversations opérateurs",
+      "description": "Consultez et répondez aux messages de chat en direct des opérateurs.",
+      "operators": "Opérateurs",
+      "noConversations": "Aucune conversation opérateur pour le moment.",
+      "selectConversation": "Sélectionnez une conversation opérateur pour répondre."
+    },
+    "detail": {
+      "submittedBy": "Soumis par {name} · {email}",
+      "createdAt": "Créé le {date}",
+      "updateStatus": "Mettre à jour le statut",
+      "internalNote": "Note interne",
+      "internalNotePlaceholder": "Ajouter des notes de résolution...",
+      "saveChanges": "Enregistrer les modifications"
+    },
+    "toasts": {
+      "created": "Ticket envoyé avec succès.",
+      "updated": "Ticket mis à jour avec succès.",
+      "deleted": "Ticket supprimé avec succès."
+    }
+  },
+  "home": {
+    "title": "Surveillance IoT de l'eau",
+    "subtitle": "Plateforme d'analyse autonome de la qualité de l'eau",
+    "signIn": "Se connecter",
+    "adminPortal": "Portail Admin →",
+    "createAccount": "Créer un compte",
+    "features": "Caractéristiques de la plateforme",
+    "auth": {
+      "signin": {
+        "title": "Se connecter",
+        "description": "Connectez-vous à votre compte opérateur",
+        "operatorBadge": "Connexion opérateur",
+        "emailLabel": "E-mail",
+        "emailPlaceholder": "operateur@exemple.com",
+        "passwordLabel": "Mot de passe",
+        "forgotPassword": "Mot de passe oublié ?",
+        "rememberMe": "Garder ma session active pendant 30 jours",
+        "submit": "Se connecter",
+        "signingIn": "Connexion en cours...",
+        "noAccount": "Vous n'avez pas de compte ?",
+        "signUp": "S'inscrire",
+        "adminPrompt": "Vous êtes administrateur ?",
+        "adminPortalLink": "Connectez-vous via le Portail Admin",
+        "errors": {
+          "invalidCredentials": "E-mail ou mot de passe invalide.",
+          "unexpected": "Une erreur est survenue. Veuillez réessayer.",
+          "adminMustUseAdminPortal": "Les comptes administrateur doivent se connecter via le Portail Admin."
+        }
+      },
+      "adminSignin": {
+        "badge": "Accès administrateur",
+        "title": "Portail Admin",
+        "description": "Connectez-vous avec vos identifiants administrateur",
+        "emailLabel": "E-mail",
+        "emailPlaceholder": "admin@exemple.com",
+        "passwordLabel": "Mot de passe",
+        "forgotPassword": "Mot de passe oublié ?",
+        "submit": "Se connecter",
+        "signingIn": "Connexion en cours...",
+        "operatorPrompt": "Cette page est réservée aux administrateurs.",
+        "operatorLink": "Aller à la connexion opérateur",
+        "errors": {
+          "invalidCredentials": "E-mail ou mot de passe invalide.",
+          "unexpected": "Une erreur est survenue. Veuillez réessayer.",
+          "operatorOnlyPortal": "Ce portail est réservé aux administrateurs. Les opérateurs doivent se connecter à /signin."
+        }
+      },
+      "signup": {
+        "title": "Créer un compte",
+        "description": "Créer un nouveau compte"
+      },
+      "forgot": {
+        "title": "Mot de passe oublié",
+        "description": "Réinitialisez votre mot de passe"
+      },
+      "reset": {
+        "title": "Réinitialiser le mot de passe",
+        "description": "Entrez votre nouveau mot de passe"
+      }
+    }
+  },
+  "errors": {
+    "roleOperatorOnly": "Ce portail est réservé aux opérateurs.",
+    "roleAdminOnly": "Ce portail est réservé aux administrateurs.",
+    "sessionExpired": "Votre session a expiré. Reconnectez-vous."
+  }
+}

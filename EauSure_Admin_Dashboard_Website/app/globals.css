@@ -1,0 +1,192 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+:root {
+  --radius: 0.5rem;
+  /* Light mode - Clean water monitoring interface */
+  --background: oklch(0.985 0.003 240);
+  --foreground: oklch(0.12 0.015 240);
+  --card: oklch(0.995 0.002 240);
+  --card-foreground: oklch(0.12 0.015 240);
+  --popover: oklch(0.995 0.002 240);
+  --popover-foreground: oklch(0.12 0.015 240);
+  /* Primary: Deep water blue - core theme */
+  --primary: oklch(0.45 0.18 250);
+  --primary-foreground: oklch(0.98 0 0);
+  /* Secondary: Aquatic blue-gray */
+  --secondary: oklch(0.90 0.02 240);
+  --secondary-foreground: oklch(0.15 0.02 240);
+  --muted: oklch(0.94 0.01 240);
+  --muted-foreground: oklch(0.45 0.01 240);
+  /* Accent: Clear water blue */
+  --accent: oklch(0.88 0.04 245);
+  --accent-foreground: oklch(0.15 0.02 240);
+  /* Destructive: Alert red for warnings */
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.86 0.015 240);
+  --input: oklch(0.86 0.015 240);
+  --ring: oklch(0.50 0.18 250);
+  /* Chart colors: Water quality data visualization */
+  --chart-1: oklch(0.50 0.18 250);
+  --chart-2: oklch(0.58 0.16 230);
+  --chart-3: oklch(0.62 0.14 210);
+  --chart-4: oklch(0.55 0.12 270);
+  --chart-5: oklch(0.48 0.20 245);
+  --sidebar: oklch(0.975 0.005 240);
+  --sidebar-foreground: oklch(0.12 0.015 240);
+  --sidebar-primary: oklch(0.45 0.18 250);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.88 0.04 245);
+  --sidebar-accent-foreground: oklch(0.15 0.02 240);
+  --sidebar-border: oklch(0.86 0.015 240);
+  --sidebar-ring: oklch(0.50 0.18 250);
+  --color-border-tertiary: rgba(0, 0, 0, 0.16);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: var(--muted-foreground);
+}
+
+.dark {
+  /* Dark mode - Deep ocean monitoring interface */
+  --background: oklch(0.10 0.015 240);
+  --foreground: oklch(0.95 0.005 240);
+  --card: oklch(0.14 0.020 240);
+  --card-foreground: oklch(0.95 0.005 240);
+  --popover: oklch(0.14 0.020 240);
+  --popover-foreground: oklch(0.95 0.005 240);
+  /* Primary: Bright water blue for high visibility */
+  --primary: oklch(0.62 0.20 250);
+  --primary-foreground: oklch(0.08 0.015 240);
+  --secondary: oklch(0.22 0.025 240);
+  --secondary-foreground: oklch(0.92 0.005 240);
+  --muted: oklch(0.19 0.020 240);
+  --muted-foreground: oklch(0.65 0.008 240);
+  /* Accent: Vibrant aqua blue */
+  --accent: oklch(0.28 0.040 245);
+  --accent-foreground: oklch(0.92 0.005 240);
+  /* Destructive: Alert red for water quality warnings */
+  --destructive: oklch(0.60 0.24 25);
+  --destructive-foreground: oklch(0.95 0 0);
+  --border: oklch(0.30 0.025 240);
+  --input: oklch(0.30 0.025 240);
+  --ring: oklch(0.62 0.20 250);
+  /* Chart colors: Water parameter monitoring */
+  --chart-1: oklch(0.62 0.20 250);
+  --chart-2: oklch(0.68 0.18 230);
+  --chart-3: oklch(0.72 0.16 210);
+  --chart-4: oklch(0.65 0.15 270);
+  --chart-5: oklch(0.58 0.22 245);
+  --sidebar: oklch(0.12 0.018 240);
+  --sidebar-foreground: oklch(0.95 0.005 240);
+  --sidebar-primary: oklch(0.62 0.20 250);
+  --sidebar-primary-foreground: oklch(0.08 0.015 240);
+  --sidebar-accent: oklch(0.28 0.040 245);
+  --sidebar-accent-foreground: oklch(0.92 0.005 240);
+  --sidebar-border: oklch(0.30 0.025 240);
+  --sidebar-ring: oklch(0.62 0.20 250);
+  --color-border-tertiary: rgba(255, 255, 255, 0.22);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: var(--muted-foreground);
+}
+
+[data-compact="true"] .card,
+[data-compact="true"] [data-slot="card"] {
+  padding: 0.5rem 0.75rem;
+}
+
+[data-compact="true"] p,
+[data-compact="true"] td {
+  font-size: 13px;
+}
+
+[data-reduced-motion="true"] *,
+[data-reduced-motion="true"] *::before,
+[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+[data-high-contrast="true"] {
+  --color-border-tertiary: rgba(0, 0, 0, 0.4);
+  --color-text-secondary: var(--color-text-primary);
+}
+
+.dark[data-high-contrast="true"] {
+  --color-border-tertiary: rgba(255, 255, 255, 0.55);
+}
+
+[data-fontsize="sm"] {
+  font-size: 13px;
+}
+
+[data-fontsize="lg"] {
+  font-size: 17px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background/40 text-foreground;
+  }
+}
+
+/* Reduced motion support for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
