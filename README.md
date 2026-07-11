@@ -14,13 +14,15 @@
 
 </div>
 
-# EauSûre Buoy 3D Design
+# EauSûre Buoy & Gateway 3D Design
 
-Travail de modélisation 3D de l'enveloppe mécanique de la bouée EauSûre.
+Travail de modélisation 3D de l'enveloppe mécanique de la bouée et la passerelle EauSûre.
 
 Ce dossier contient les deux demi-coques principales du boîtier :
-- la partie supérieure ;
-- la partie inférieure ;
+- la partie supérieure de la bouée ;
+- la partie inférieure de la bouée ;
+- la partie supérieure de la passerelle;
+- la partie inférieure de la passerelle ;
 - leurs sources de travail ;
 - leurs exports d'impression ;
 - leurs aperçus visuels.
@@ -32,6 +34,8 @@ Le travail 3D complète la conception électronique et embarquée de la solution
 Il couvre :
 - la coque supérieure de la bouée ;
 - la coque inférieure de la bouée ;
+- la coque supérieure de la passerelle ;
+- la coque inférieure de la passerelle ;
 - la préparation des pièces pour impression ou prototypage ;
 - les rendus de prévisualisation des pièces mécaniques.
 
@@ -53,15 +57,29 @@ Il couvre :
 
 ## Pièces principales
 
-- [eausure-buoy-upper-shell.3mf](source/eausure-buoy-upper-shell.3mf)
-- [eausure-buoy-lower-shell.3mf](source/eausure-buoy-lower-shell.3mf)
+**IoT Node (Buoy) :**
+- [eausure-buoy-upper-shell.3mf](IoT_Node/source/eausure-buoy-upper-shell.3mf)
+- [eausure-buoy-lower-shell.3mf](IoT_Node/source/eausure-buoy-lower-shell.3mf)
+
+**Gateway Node :**
+- [gateway-up-shell.stl](Gateway_Node/stl/gateway_up_shell.stl)
+- [gateway-low-shell.stl](Gateway_Node/stl/gateway_low_shell.stl)
 
 ## Exports STL
 
-- [eausure-buoy-upper-shell.stl](exports/stl/eausure-buoy-upper-shell.stl)
-- [eausure-buoy-lower-shell.stl](exports/stl/eausure-buoy-lower-shell.stl)
+**IoT Node (Buoy) :**
+- [eausure-buoy-upper-shell.stl](IoT_Node/exports/stl/eausure-buoy-upper-shell.stl)
+- [eausure-buoy-lower-shell.stl](IoT_Node/exports/stl/eausure-buoy-lower-shell.stl)
+
+**Gateway Node :**
+- [gateway-up-shell.stl](Gateway_Node/stl/gateway_up_shell.stl)
+- [gateway-low-shell.stl](Gateway_Node/stl/gateway_low_shell.stl)
 
 ## Aperçus
 
-- [eausure-buoy-upper-shell.png](exports/previews/eausure-buoy-upper-shell.png)
-- [eausure-buoy-lower-shell.png](exports/previews/eausure-buoy-lower-shell.png)
+**IoT Node (Buoy) :**
+- [eausure-buoy-upper-shell.png](IoT_Node/exports/previews/eausure-buoy-up-shell.png)
+- [eausure-buoy-lower-shell.png](IoT_Node/exports/previews/eausure-buoy-low-shell.png)
+
+**Gateway Node :**
+- [gateway-shell.png](Gateway_Node/preview/gateway_shell.png)
