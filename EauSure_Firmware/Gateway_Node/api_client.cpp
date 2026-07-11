@@ -1,0 +1,670 @@
+#include "api_client.h"
+#include "config.h"
+#include "tls_utils.h"
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <WiFi.h>
+#include <ArduinoJson.h>
+#include <esp_system.h>
+
+static String extractHostFromUrl(const String& url) {
+  int start = 0;
+  if (url.startsWith("https://")) start = 8;
+  else if (url.startsWith("http://")) start = 7;
+
+  int slash = url.indexOf('/', start);
+  if (slash < 0) return url.substring(start);
+  return url.substring(start, slash);
+}
+
+static void printHeapStats() {
+  Serial.printf("[API][DIAG] Free heap: %u\n", ESP.getFreeHeap());
+  Serial.printf("[API][DIAG] Min free heap: %u\n", ESP.getMinFreeHeap());
+}
+
+static bool rawTcpConnectTest(const String& host, uint16_t port) {
+  WiFiClient client;
+  client.setTimeout(5000);
+
+  Serial.printf("[API][DIAG] raw TCP connect -> %s:%u\n", host.c_str(), port);
+  bool ok = client.connect(host.c_str(), port);
+  Serial.printf("[API][DIAG] raw TCP connect: %s\n", ok ? "OK" : "FAIL");
+  if (ok) client.stop();
+  return ok;
+}
+
+static bool rawTlsConnectTest(const String& host, uint16_t port) {
+  WiFiClientSecure client;
+  if (!TlsUtils::configureClient(client, API_TLS_ROOT_CA, "API raw TLS")) {
+    return false;
+  }
+
+  Serial.printf("[API][DIAG] raw TLS connect -> %s:%u\n", host.c_str(), port);
+  bool ok = client.connect(host.c_str(), port);
+  Serial.printf("[API][DIAG] raw TLS connect: %s\n", ok ? "OK" : "FAIL");
+  if (ok) client.stop();
+  return ok;
+}
+
+static void printDnsLookup(const String& host) {
+  IPAddress resolved;
+  if (WiFi.hostByName(host.c_str(), resolved)) {
+    Serial.printf("[API][DIAG] DNS %s -> %s\n", host.c_str(), resolved.toString().c_str());
+  } else {
+    Serial.printf("[API][DIAG] DNS FAILED for %s\n", host.c_str());
+  }
+}
+
+static int httpsPost(const String& url, const String& body, String& responseOut, bool includeGatewayApiKey = false) {
+  responseOut = "";
+  String host = extractHostFromUrl(url);
+
+  Serial.println();
+  Serial.println("[API][DIAG] ===== HTTPS POST begin =====");
+  Serial.println("[API][DIAG] URL: " + url);
+  Serial.println("[API][DIAG] Host: " + host);
+  Serial.printf("[API][DIAG] WiFi status: %d\n", (int)WiFi.status());
+  Serial.printf("[API][DIAG] Local IP: %s\n", WiFi.localIP().toString().c_str());
+  printHeapStats();
+
+  printDnsLookup(host);
+  rawTcpConnectTest(host, 443);
+  rawTlsConnectTest(host, 443);
+
+  WiFiClientSecure client;
+  if (!TlsUtils::configureClient(client, API_TLS_ROOT_CA, "API HTTPS POST")) {
+    return -1;
+  }
+
+  HTTPClient http;
+  http.setReuse(false);
+  http.useHTTP10(true);
+  http.setTimeout(10000);
+  http.setConnectTimeout(10000);
+
+  Serial.println("[API][DIAG] http.begin -> " + url);
+  if (!http.begin(client, url)) {
+    Serial.println("[API][DIAG] http.begin FAILED");
+    return -1;
+  }
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Connection", "close");
+  if (includeGatewayApiKey) {
+#if !defined(API_KEY)
+#error "API_KEY must be defined in Gateway_Node/config.h for authenticated firmware API routes"
+#endif
+    http.addHeader("X-Gateway-Key", API_KEY);
+  }
+
+  int code = http.POST(body);
+  responseOut = (code > 0) ? http.getString() : "";
+
+  Serial.printf("[API][DIAG] HTTP code: %d\n", code);
+  if (code <= 0) {
+    Serial.println("[API][DIAG] errorToString: " + http.errorToString(code));
+  } else {
+    Serial.println("[API][DIAG] Response: " + responseOut);
+  }
+
+  http.end();
+  Serial.println("[API][DIAG] ===== HTTPS POST end =====");
+  return code;
+}
+
+static int httpsGet(const String& url, String& responseOut, bool includeGatewayApiKey = false) {
+  responseOut = "";
+  String host = extractHostFromUrl(url);
+
+  Serial.println();
+  Serial.println("[API][DIAG] ===== HTTPS GET begin =====");
+  Serial.println("[API][DIAG] URL: " + url);
+  Serial.println("[API][DIAG] Host: " + host);
+  Serial.printf("[API][DIAG] WiFi status: %d\n", (int)WiFi.status());
+  Serial.printf("[API][DIAG] Local IP: %s\n", WiFi.localIP().toString().c_str());
+  printHeapStats();
+
+  printDnsLookup(host);
+  rawTcpConnectTest(host, 443);
+  rawTlsConnectTest(host, 443);
+
+  WiFiClientSecure client;
+  if (!TlsUtils::configureClient(client, API_TLS_ROOT_CA, "API HTTPS GET")) {
+    return -1;
+  }
+
+  HTTPClient http;
+  http.setReuse(false);
+  http.useHTTP10(true);
+  http.setTimeout(10000);
+  http.setConnectTimeout(10000);
+
+  Serial.println("[API][DIAG] http.begin -> " + url);
+  if (!http.begin(client, url)) {
+    Serial.println("[API][DIAG] http.begin FAILED");
+    return -1;
+  }
+
+  http.addHeader("Connection", "close");
+
+  // Gateway auth via X-Gateway-Key header for protected endpoints
+  if (includeGatewayApiKey) {
+#if defined(API_KEY)
+    http.addHeader("X-Gateway-Key", API_KEY);
+#else
+    http.addHeader("X-Gateway-Key", GATEWAY_DEVICE_SECRET);
+#endif
+  }
+
+  int code = http.GET();
+  responseOut = (code > 0) ? http.getString() : "";
+
+  Serial.printf("[API][DIAG] HTTP code: %d\n", code);
+  if (code <= 0) {
+    Serial.println("[API][DIAG] errorToString: " + http.errorToString(code));
+  } else {
+    Serial.println("[API][DIAG] Response: " + responseOut);
+  }
+
+  http.end();
+  Serial.println("[API][DIAG] ===== HTTPS GET end =====");
+  return code;
+}
+
+namespace ApiClient {
+
+bool healthCheck(const String& apiBaseUrl) {
+  Serial.println("\n[API][HEALTH] -- HTTPS reachability check --");
+  if (apiBaseUrl.isEmpty()) {
+    Serial.println("[API][HEALTH] FAILED - empty API base URL");
+    return false;
+  }
+
+  String url = apiBaseUrl + "/health";
+  Serial.println("[API][HEALTH] Target: " + url);
+
+  String resp;
+  int code = httpsGet(url, resp);
+  if (code <= 0) {
+    Serial.printf("[API][HEALTH] FAILED - code=%d\n", code);
+    return false;
+  }
+
+  Serial.printf("[API][HEALTH] HTTP %d | %s\n", code, resp.c_str());
+  return (code >= 200 && code < 300);
+}
+
+bool provisionGateway(
+  const String& apiBaseUrl,
+  const String& gatewayHardwareId,
+  const String& firmwareVersion,
+  const String& deviceSecret,
+  const String& token,
+  const String& gatewayName,
+  GatewayProvisionResult& out
+) {
+  out = GatewayProvisionResult{};
+
+  if (apiBaseUrl.isEmpty()) {
+    out.message = "API base URL is empty";
+    return false;
+  }
+  if (deviceSecret.isEmpty()) {
+    out.message = "Gateway device secret is empty";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/gateway/provision";
+
+  StaticJsonDocument<320> req;
+  req["gatewayHardwareId"] = gatewayHardwareId;
+  req["firmwareVersion"] = firmwareVersion;
+  req["deviceSecret"] = deviceSecret;
+  req["token"] = token;
+  req["gatewayName"] = gatewayName;
+
+  String body;
+  serializeJson(req, body);
+
+  Serial.println("\n[API] POST " + url);
+  Serial.printf("[API] Body: {\"gatewayHardwareId\":\"%s\",\"firmwareVersion\":\"%s\",\"deviceSecret\":\"[REDACTED]\",\"token\":\"[REDACTED]\",\"gatewayName\":\"%s\"}\n",
+                gatewayHardwareId.c_str(),
+                firmwareVersion.c_str(),
+                gatewayName.c_str());
+
+  String response;
+  int code = httpsPost(url, body, response);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP POST failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<512> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  out.message = String(resp["message"] | "");
+
+  if (out.success) {
+    JsonObject data = resp["data"];
+    out.gatewayId = String(data["gatewayId"] | "");
+    out.name = String(data["name"] | "");
+    out.mqttTopic = String(data["mqttTopic"] | "");
+    return true;
+  }
+
+  return false;
+}
+
+bool rollbackPairNode(
+  const String& apiBaseUrl,
+  const String& gatewayHardwareId,
+  const String& nodeId,
+  const String& pairingToken,
+  ApiBasicResult& out
+) {
+  out = ApiBasicResult{};
+
+  if (apiBaseUrl.isEmpty()) {
+    out.message = "API base URL is empty";
+    return false;
+  }
+  if (pairingToken.isEmpty()) {
+    out.message = "Pairing token is empty";
+    return false;
+  }
+  if (nodeId.isEmpty()) {
+    out.message = "Node ID is empty";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/pair-node/rollback";
+
+  StaticJsonDocument<256> req;
+  req["gatewayHardwareId"] = gatewayHardwareId;
+  req["nodeId"] = nodeId;
+  req["pairingToken"] = pairingToken;
+
+  String body;
+  serializeJson(req, body);
+
+  Serial.println("\n[API] POST " + url);
+  Serial.println("[API] Body: " + body);
+
+  String response;
+  int code = httpsPost(url, body, response, true);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP POST failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<384> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  out.message = String(resp["message"] | "");
+  return out.success;
+}
+
+bool failPairingSession(
+  const String& apiBaseUrl,
+  const String& sessionId,
+  const String& reason,
+  ApiBasicResult& out
+) {
+  out = ApiBasicResult{};
+
+  if (apiBaseUrl.isEmpty()) {
+    out.message = "API base URL is empty";
+    return false;
+  }
+  if (sessionId.isEmpty()) {
+    out.message = "Session ID is empty";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/pair-node/fail-session";
+
+  StaticJsonDocument<256> req;
+  req["sessionId"] = sessionId;
+  req["reason"] = reason;
+
+  String body;
+  serializeJson(req, body);
+
+  Serial.println("\n[API] POST " + url);
+
+  String response;
+  int code = httpsPost(url, body, response, true);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP POST failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<384> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  out.message = String(resp["message"] | "");
+  return out.success;
+}
+
+bool fetchGatewayConfig(
+  const String& apiBaseUrl,
+  const String& gatewayHardwareId,
+  GatewayConfigResult& out
+) {
+  out = GatewayConfigResult{};
+
+  if (apiBaseUrl.isEmpty() || gatewayHardwareId.isEmpty()) {
+    out.message = "Missing params";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/gateway/" + gatewayHardwareId + "/config";
+  Serial.println("\n[API] GET " + url);
+
+  String response;
+  int code = httpsGet(url, response, true);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP GET failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<1024> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  if (!out.success) {
+    out.message = String(resp["message"] | "Fetch config failed");
+    return false;
+  }
+
+  JsonObject data = resp["data"];
+  JsonObject gwConfig = data["gatewayConfig"];
+
+  // First paired node's config takes precedence (node-level overrides gateway defaults)
+  JsonArray nodes = data["nodes"].as<JsonArray>();
+  if (nodes.size() > 0) {
+    JsonObject firstNode = nodes[0];
+    out.primaryNodeId = String(firstNode["nodeId"] | "");
+    JsonObject nodeConfig = firstNode["config"];
+
+    // Use node config if present, fallback to gateway config
+    out.measureIntervalSec = nodeConfig.containsKey("measureInterval") ? nodeConfig["measureInterval"].as<uint32_t>() : (gwConfig["measureInterval"] | 60);
+    out.shakeEnabled       = nodeConfig.containsKey("shakeEnabled")    ? nodeConfig["shakeEnabled"].as<bool>()        : (gwConfig.containsKey("shakeEnabled") ? gwConfig["shakeEnabled"].as<bool>() : true);
+    out.shakeThreshold     = nodeConfig.containsKey("shakeThreshold")  ? nodeConfig["shakeThreshold"].as<float>()     : (gwConfig["shakeThreshold"] | 1.1f);
+    out.nodeActive         = nodeConfig.containsKey("nodeActive")      ? nodeConfig["nodeActive"].as<bool>()          : (gwConfig.containsKey("nodeActive") ? gwConfig["nodeActive"].as<bool>() : true);
+    out.gatewayVocalAlerts = nodeConfig.containsKey("gatewayVocalAlerts") ? nodeConfig["gatewayVocalAlerts"].as<bool>() : true;
+  } else {
+    // No paired node yet — use gateway defaults
+    out.measureIntervalSec = gwConfig["measureInterval"] | 60;
+    out.shakeEnabled       = gwConfig.containsKey("shakeEnabled") ? gwConfig["shakeEnabled"].as<bool>() : true;
+    out.shakeThreshold     = gwConfig["shakeThreshold"] | 1.1f;
+    out.nodeActive         = gwConfig.containsKey("nodeActive") ? gwConfig["nodeActive"].as<bool>() : true;
+    out.gatewayVocalAlerts = true;
+  }
+
+  Serial.printf("[API] Config fetched: mi=%lu st=%.2f se=%d na=%d va=%d node=%s\n",
+                (unsigned long)out.measureIntervalSec,
+                out.shakeThreshold,
+                (int)out.shakeEnabled,
+                (int)out.nodeActive,
+                (int)out.gatewayVocalAlerts,
+                out.primaryNodeId.c_str());
+
+  return true;
+}
+
+bool verifyNodeProof(
+  const String& apiBaseUrl,
+  const String& gatewayHardwareId,
+  const String& nodeId,
+  const String& sessionId,
+  const String& nonce,
+  const String& proof,
+  PairingTokenResult& out
+) {
+  out = PairingTokenResult{};
+
+  if (apiBaseUrl.isEmpty()) {
+    out.message = "API base URL is empty";
+    return false;
+  }
+  if (gatewayHardwareId.isEmpty() || nodeId.isEmpty() || sessionId.isEmpty()) {
+    out.message = "Missing pairing verification identifiers";
+    return false;
+  }
+  if (nonce.isEmpty() || proof.isEmpty()) {
+    out.message = "Missing nonce or proof";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/pair-node/verify-proof";
+
+  StaticJsonDocument<384> req;
+  req["gatewayHardwareId"] = gatewayHardwareId;
+  req["nodeId"] = nodeId;
+  req["sessionId"] = sessionId;
+  req["nonce"] = nonce;
+  req["proof"] = proof;
+
+  String body;
+  serializeJson(req, body);
+
+  Serial.println("\n[API] POST " + url);
+
+  String response;
+  int code = httpsPost(url, body, response, true);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP POST failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<512> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  out.message = String(resp["message"] | "");
+  if (!out.success) return false;
+
+  JsonObject data = resp["data"];
+  out.pairingToken = String(data["pairingToken"] | "");
+  if (out.pairingToken.isEmpty()) {
+    out.message = "Missing pairing token in response";
+    return false;
+  }
+
+  return true;
+}
+
+bool fetchPendingPairingKey(
+  const String& apiBaseUrl,
+  const String& gatewayHardwareId,
+  const String& expectedNodeId,
+  PendingPairingKeyResult& out
+) {
+  out = PendingPairingKeyResult{};
+
+  if (apiBaseUrl.isEmpty()) {
+    out.message = "API base URL is empty";
+    return false;
+  }
+  if (gatewayHardwareId.isEmpty()) {
+    out.message = "Gateway hardware ID is empty";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/gateway/heartbeat";
+
+  StaticJsonDocument<192> req;
+  req["gatewayHardwareId"] = gatewayHardwareId;
+
+  String body;
+  serializeJson(req, body);
+
+  Serial.println("\n[API] POST " + url + " (heartbeat/pending)");
+
+  String response;
+  int code = httpsPost(url, body, response, true);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP POST failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<1024> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  out.message = String(resp["message"] | "");
+  if (!out.success) return false;
+
+  JsonArray commands = resp["data"]["pendingCommands"].as<JsonArray>();
+  for (JsonObject cmd : commands) {
+    String type = String(cmd["cmd"] | "");
+    if (type != "PAIRING_KEY_READY") continue;
+
+    String nodeId = String(cmd["nodeId"] | "");
+    nodeId.toUpperCase();
+    if (!expectedNodeId.isEmpty()) {
+      String expected = expectedNodeId;
+      expected.toUpperCase();
+      if (nodeId != expected) continue;
+    }
+
+    JsonObject payload = cmd["payload"];
+    out.found = true;
+    out.commandId = String(cmd["cmdId"] | "");
+    out.nodeId = nodeId;
+    out.aesKey = String(payload["aesKey"] | cmd["aesKey"] | "");
+    return true;
+  }
+
+  return true;
+}
+
+bool ackCommand(
+  const String& apiBaseUrl,
+  const String& commandId,
+  ApiBasicResult& out
+) {
+  out = ApiBasicResult{};
+
+  if (apiBaseUrl.isEmpty()) {
+    out.message = "API base URL is empty";
+    return false;
+  }
+  if (commandId.isEmpty()) {
+    out.message = "Command ID is empty";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/command/ack";
+
+  StaticJsonDocument<96> req;
+  req["cmdId"] = commandId;
+
+  String body;
+  serializeJson(req, body);
+
+  Serial.println("\n[API] POST " + url + " (ack)");
+
+  String response;
+  int code = httpsPost(url, body, response, true);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP POST failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<256> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  out.message = String(resp["message"] | "");
+  return out.success;
+}
+
+bool failCommand(
+  const String& apiBaseUrl,
+  const String& commandId,
+  const String& reason,
+  ApiBasicResult& out
+) {
+  out = ApiBasicResult{};
+
+  if (apiBaseUrl.isEmpty()) {
+    out.message = "API base URL is empty";
+    return false;
+  }
+  if (commandId.isEmpty()) {
+    out.message = "Command ID is empty";
+    return false;
+  }
+
+  String url = apiBaseUrl + "/api/registry/command/fail";
+
+  StaticJsonDocument<192> req;
+  req["cmdId"] = commandId;
+  req["reason"] = reason;
+
+  String body;
+  serializeJson(req, body);
+
+  Serial.println("\n[API] POST " + url + " (fail)");
+
+  String response;
+  int code = httpsPost(url, body, response, true);
+  out.httpCode = code;
+
+  if (code <= 0) {
+    out.message = "HTTP POST failed (code=" + String(code) + ")";
+    return false;
+  }
+
+  StaticJsonDocument<256> resp;
+  if (deserializeJson(resp, response)) {
+    out.message = "Invalid JSON response";
+    return false;
+  }
+
+  out.success = resp["success"] | false;
+  out.message = String(resp["message"] | "");
+  return out.success;
+}
+
+} // namespace ApiClient

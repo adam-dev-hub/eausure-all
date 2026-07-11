@@ -1,0 +1,133 @@
+#pragma once
+
+/**
+ * ============================================================
+ * CONFIGURATION TEMPLATE - LoRa Gateway Node
+ * ============================================================
+ * 
+ * SETUP INSTRUCTIONS:
+ * 1. Copy this file to config.h
+ * 2. COPY EXACT KEYS from IoT_Node/config.h!
+ * 3. Verify all LoRa parameters match IoT_Node
+ * 4. Compile and upload
+ * 
+ * SECURITY: config.h is ignored by git (.gitignore)
+ * Never commit actual config.h file - only use this template!
+ */
+
+// ============================================================
+// GATEWAY PAIRING IDENTITY
+// ============================================================
+// The real gateway device ID used by the backend and MQTT is derived at runtime
+// from the gateway WiFi MAC address, so it is intentionally different from the
+// paired IoT node LoRa ID learned during pairing.
+#define GATEWAY_DEVICE_NAME "Gateway DevKit"
+#define GATEWAY_DEVICE_ID "GW-XXXXXXXX"
+#define GATEWAY_DEVICE_SECRET "replace_with_gateway_device_secret"
+static const uint8_t PROTO_VERSION = 1;
+
+// ============================================================
+// LoRa RADIO CONFIGURATION - MUST MATCH IoT_Node!
+// ============================================================
+static const long LORA_FREQ = 433E6;
+static const int LORA_SF = 7;
+static const long LORA_BW = 125E3;
+static const int LORA_CR = 5;
+static const uint8_t LORA_SYNC_WORD = 0x34;
+
+// LoRa GPIO pins (ESP32 DevKit)
+static const int LORA_NSS  = 5;
+static const int LORA_SCK  = 18;
+static const int LORA_MISO = 19;
+static const int LORA_MOSI = 23;
+static const int LORA_RST  = 32;
+static const int LORA_DIO0 = 33;
+static const int LORA_DIO1 = 17;
+static const int LORA_DIO2 = 16;
+
+// ============================================================
+// GATEWAY FEATURES
+// ============================================================
+static const int SD_CS_PIN = 4;
+static const int AUDIO_PIN = 25;
+static const int MAX_ALERT_QUEUE = 5;
+
+// ============================================================
+// SENSOR ALERT THRESHOLDS (Gateway only)
+// ============================================================
+static const float PH_MIN_SAFE = 6.5f;
+static const float PH_MAX_SAFE = 8.5f;
+static const int TDS_MIN_SAFE = 100;
+static const int TDS_MAX_SAFE = 1000;
+static const int TURBIDITY_MAX_SAFE = 5;
+static const float TEMP_MIN_SAFE = 10.0f;
+static const float TEMP_MAX_SAFE = 35.0f;
+
+// ============================================================
+// COMMUNICATION
+// ============================================================
+static const uint32_t ACK_TIMEOUT_MS = 1500;
+static const uint8_t ACK_RETRY_MAX = 3;
+
+// ============================================================
+// WIFI & CLOUD API CONFIGURATION
+// ============================================================
+
+#define API_URL "https://api-domain.example/api/sensor-data"
+#define API_KEY "replace_with_api_key"
+
+// Connection settings
+#define WIFI_TIMEOUT_MS 10000
+#define HTTP_TIMEOUT_MS 5000
+#define WIFI_RECONNECT_INTERVAL 30000
+
+// ============================================================
+// DEBUG
+// ============================================================
+#define DEBUG_ENABLED 1
+static const uint32_t SERIAL_BAUD = 115200;
+#define LOG_PACKETS 0
+
+
+#define API_BASE_URL "https://api-domain.example"
+#define GATEWAY_FIRMWARE_VERSION "0.0.1"
+
+// ============================================================
+// TLS TRUST CONFIGURATION
+// ============================================================
+// Paste the PEM-encoded root/intermediate CA that signs your HTTPS API cert.
+static const char API_TLS_ROOT_CA[] PROGMEM = R"PEM(
+
+)PEM";
+
+// Optional: paste the PEM-encoded root/intermediate CA that signs your
+// firmware download host (for example Vercel Blob / S3 / R2). If left empty,
+// the gateway falls back to API_TLS_ROOT_CA for downloads.
+static const char DOWNLOAD_TLS_ROOT_CA[] PROGMEM = R"PEM(
+
+)PEM";
+
+// ============================================================
+// MQTT CONFIGURATION
+// ============================================================
+
+#define MQTT_BROKER_HOST "mqtt-broker.example"
+#define MQTT_BROKER_PORT 8883
+
+#define MQTT_USERNAME "replace_with_mqtt_username"
+#define MQTT_PASSWORD "replace_with_mqtt_password"
+
+// Topic base
+#define MQTT_COMMAND_TOPIC_PREFIX "commands/gateway/"
+#define MQTT_EVENT_TOPIC_PREFIX   "events/gateway/"
+
+// Optional
+#define MQTT_CLIENT_ID_PREFIX "gw-"
+
+#define MQTT_RECONNECT_INTERVAL_MS 5000
+#define MQTT_QOS 1
+
+// Paste the PEM-encoded root/intermediate CA that signs your MQTT broker cert.
+static const char MQTT_TLS_ROOT_CA[] PROGMEM = R"PEM(
+
+)PEM";

@@ -1,0 +1,109 @@
+#pragma once
+
+/**
+ * ============================================================
+ * CONFIGURATION TEMPLATE - IoT Water Quality Measurement Node
+ * ============================================================
+ * 
+ * SETUP INSTRUCTIONS:
+ * 1. Copy this file to config.h
+ * 2. Generate/update node identity and secret for your deployment
+ * 3. Update NODE_DEVICE_ID and NODE_DEVICE_SECRET
+ * 4. Verify LoRa parameters match Gateway_Node/config.h
+ * 5. Compile and upload
+ * 
+ * SECURITY: config.h is ignored by git (.gitignore)
+ * Never commit actual config.h file - only use this template!
+ */
+
+// ============================================================
+// DEVICE PAIRING IDENTITY
+// ============================================================
+#define NODE_DEVICE_NAME "Tank Node"
+#define NODE_DEVICE_ID 0x12345678
+static const uint32_t DEVICE_ID = NODE_DEVICE_ID;
+// This must match the pre-registered deviceSecret stored in the backend.
+#define NODE_DEVICE_SECRET "replace_with_node_device_secret"
+// Firmware version: edit version.txt then run `python3 tools/embed_version.py` before compile.
+static const uint8_t PROTO_VERSION = 1;
+
+
+
+
+// ============================================================
+// LoRa RADIO CONFIGURATION - MUST MATCH GATEWAY
+// ============================================================
+static const long LORA_FREQ = 433E6;            // Hz (433, 868, or 915 MHz)
+static const int LORA_SF = 7;                   // Spreading Factor (6-12)
+static const long LORA_BW = 125E3;              // Bandwidth (Hz)
+static const int LORA_CR = 5;                   // Coding Rate (5-8)
+static const uint8_t LORA_SYNC_WORD = 0x34;    // Network identifier
+
+// LoRa GPIO pins (ESP32-S3)
+static const int LORA_RST  = 9;
+static const int LORA_DIO0 = 8;
+static const int LORA_NSS  = 10;
+static const int LORA_MOSI = 11;
+static const int LORA_MISO = 13;
+static const int LORA_SCK  = 12;
+static const int LORA_DIO1 = 4;
+static const int LORA_DIO2 = 16;
+
+static const uint8_t ACK_RETRY_MAX = 3;
+static const uint32_t ACK_TIMEOUT_MS = 1500;
+
+// ============================================================
+// SENSOR CONFIGURATION
+// ============================================================
+static const float BATT_EMPTY_V = 3.00f;
+static const float BATT_FULL_V = 4.20f;
+
+static const int SENSOR_POWER_PIN = 40;
+static const int TURB_ADC_PIN = 6;
+static const int TDS_ADC_PIN = 2;
+static const int PH_ADC_PIN = 17;
+static const int ONE_WIRE_BUS = 21;
+
+// pH Sensor Calibration
+static const float PH_VOLTAGE_AT_NEUTRAL = 2.62f;  // Voltage at pH 7.0
+static const float PH_SLOPE = 0.18f;               // Voltage change per pH unit
+
+static const uint32_t SENSOR_WARMUP_MS = 300;
+static const uint32_t SENSOR_RC_SETTLE_MS = 2500;
+static const float TURB_DIVIDER_RTOP = 15000.0f;
+static const float TURB_DIVIDER_RBOT = 10000.0f;
+
+// ============================================================
+// MPU6050 ACCELEROMETER
+// ============================================================
+static const float SHAKE_THRESHOLD_G = 1.1f;
+static const uint32_t SHAKE_COOLDOWN_MS = 1500;
+static const uint8_t ACCEL_RANGE = 2;
+
+// MPU6050 I2C Address and Registers
+static const uint8_t MPU_ADDR = 0x68;
+static const uint8_t REG_PWR_MGMT_1 = 0x6B;
+static const uint8_t REG_ACCEL_CONFIG = 0x1C;
+static const uint8_t REG_TEMP_OUT_H = 0x41;
+static const uint8_t REG_ACCEL_XOUT_H = 0x3B;
+
+// ============================================================
+// DISPLAY & TIMING
+// ============================================================
+static const int SCREEN_WIDTH = 128;
+static const int SCREEN_HEIGHT = 64;
+static const uint8_t OLED_ADDR = 0x3C;
+static const int I2C_SDA = 19;
+static const int I2C_SCL = 20;
+
+static const int RGB_PIN = 48;
+static const int RGB_COUNT = 1;
+
+static const uint32_t OLED_UPDATE_MS = 100;
+static const uint32_t AUTO_READ_INTERVAL_MS = 60000;
+
+// ============================================================
+// DEBUG
+// ============================================================
+#define DEBUG_ENABLED 1
+static const uint32_t SERIAL_BAUD = 115200;
