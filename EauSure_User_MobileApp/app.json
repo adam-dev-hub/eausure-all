@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "eausure_app",
+    "slug": "eausure_app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "eausureapp",
+    "icon": "./assets/branding/logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/branding/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a",
+      "userInterfaceStyle": "dark"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/branding/logo.png",
+        "backgroundColor": "#0f172a"
+      },
+      "notification": {
+        "icon": "./assets/branding/notification-icon.png",
+        "color": "#0ea5e9",
+        "androidMode": "default"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_STATE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.NEARBY_WIFI_DEVICES"
+      ],
+      "package": "com.farjeouiadam.eausure_app"
+    },
+    "web": {
+      "favicon": "./assets/branding/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-router",
+      "expo-font",
+      "expo-video",
+      "expo-web-browser",
+      "react-native-ble-plx",
+      "./plugins/withGatewayWifiScan"
+    ]
+  }
+}
