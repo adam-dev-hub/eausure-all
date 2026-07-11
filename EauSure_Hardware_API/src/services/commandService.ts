@@ -1,0 +1,129 @@
+import mqttService from './mqttService';
+import Command, { CommandType } from '../models/Command';
+import { IGateway } from '../models/Gateway';
+
+export async function sendCommand(
+  gateway: IGateway,
+  type: CommandType,
+  payload: Record<string, any>,
+  nodeId: string | null = null,
+): Promise<{ ok: boolean; commandId: string }> {
+  const ttlMs = type === 'UPDATE_FIRMWARE'
+    ? 24 * 60 * 60 * 1000
+    : 5 * 60 * 1000;
+
+  const command = new Command({
+    gatewayId: gateway._id,
+    gatewayHardwareId: gateway.gatewayId,
+    nodeId,
+    type,
+    payload,
+    status: 'pending',
+    expiresAt: new Date(Date.now() + ttlMs),
+  });
+  await command.save();
+
+  const mqttPayload = {
+    cmdId: command._id.toString(),
+    cmd: type,
+    nodeId: nodeId ?? undefined,
+    ...payload,
+  };
+
+  const topic = `commands/gateway/${gateway.gatewayId}`;
+  // Publish with retain=true so the gateway receives the command
+  // even if it's temporarily disconnected (TLS window, audio, etc.)
+  // The gateway firmware clears retained messages after processing.
+  const published = await mqttService.publishEvent(topic, mqttPayload, true);
+
+  if (published) {
+    command.status = 'sent';
+    command.sentAt = new Date();
+    await command.save();
+  } else {
+    command.status = 'failed';
+    await command.save();
+  }
+
+  return { ok: published, commandId: command._id.toString() };
+}
+
+export async function ackCommand(commandId: string): Promise<void> {
+  await Command.findByIdAndUpdate(commandId, {
+    status: 'acked',
+    ackedAt: new Date(),
+  });
+}
+
+export async function failCommand(commandId: string, reason?: string): Promise<void> {
+  const update: Record<string, unknown> = { status: 'failed' };
+  if (reason) {
+    update.$set = { 'payload.failReason': reason };
+  }
+  await Command.findByIdAndUpdate(commandId, update);
+}
+
+export function buildConfirmPairingPayload(input: {
+  nodeId: string;
+  nodeName: string;
+  bleMac: string;
+  sessionId: string;
+  apPassword: string;
+}): Record<string, any> {
+  return {
+    nodeId: input.nodeId,
+    nodeName: input.nodeName,
+    bleMac: input.bleMac,
+    sessionId: input.sessionId,
+    apPassword: input.apPassword,
+  };
+}
+
+export function buildPairingKeyReadyPayload(input: {
+  nodeId: string;
+  aesKey: string;
+}): Record<string, any> {
+  return {
+    nodeId: input.nodeId,
+    aesKey: input.aesKey,
+  };
+}
+
+export function buildSetConfigPayload(
+  config: Record<string, any>,
+  nodeId?: string,
+): Record<string, any> {
+  // Only shake config is forwarded to the node via LoRa.
+  // measureInterval and nodeActive are gateway-side only.
+  const nodeConfig: Record<string, any> = {};
+  if (config.shakeThreshold !== undefined) nodeConfig.shakeThreshold = config.shakeThreshold;
+  if (config.shakeEnabled   !== undefined) nodeConfig.shakeEnabled   = config.shakeEnabled;
+
+  return {
+    ...(nodeId ? { nodeId } : {}),
+    config: nodeConfig,
+  };
+}
+
+export function buildUpdateFirmwarePayload(input: {
+  target: 'gateway' | 'node';
+  nodeId?: string;
+  url: string;
+  version: string;
+  md5: string;
+  size: number;
+}): Record<string, any> {
+  const payload: Record<string, any> = {
+    target: input.target,
+    url: input.url,
+    version: input.version,
+    md5: input.md5,
+    size: input.size,
+  };
+  
+  if (input.target === 'node' && input.nodeId) {
+    payload.nodeId = input.nodeId;
+  }
+  
+  return payload;
+}
