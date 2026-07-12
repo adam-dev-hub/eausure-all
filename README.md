@@ -16,7 +16,7 @@
 </div>
 
 # EauSûre
-Écosystème IoT de surveillance intelligente de la qualité de l'eau se repose sur une bouée connectée flottante, une passerelle DIY LoRa et un environnement logiciel divers (Interfaces/APIs/Plateforme Cloud)...
+Écosystème IoT de surveillance intelligente de la qualité de l'eau s'articule autour de trois composantes principales : une bouée connectée flottante chargée de la collecte des données, une passerelle LoRa développée en interne (DIY) assurant la transmission des mesures, ainsi qu'un environnement logiciel hétérogène regroupant des interfaces utilisateur, des API et une plateforme cloud pour le traitement, le stockage et la visualisation des données.
 
 <img
   src="Prototype_EauSure.png"
