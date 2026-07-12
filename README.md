@@ -18,7 +18,7 @@
 # EauSûre
 
 <img
-  src="iot_node.png"
+  src="Prototype_EauSure.png"
   alt="Image Prototype EauSure"
   style="border-radius: 16px;"
 />
