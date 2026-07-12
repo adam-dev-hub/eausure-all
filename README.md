@@ -17,6 +17,12 @@
 
 # EauSûre
 
+<img
+  src="iot_node.png"
+  alt="Image Prototype EauSure"
+  style="border-radius: 16px;"
+/>
+
 Écosystème IoT de surveillance intelligente de la qualité de l'eau.
 
 L'organisation regroupe les différents sous-systèmes de la solution :
