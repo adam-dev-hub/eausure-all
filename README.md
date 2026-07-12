@@ -51,14 +51,14 @@ EauSûre est conçu comme une plateforme complète, allant du matériel embarqu�
 
 ## Rapport
 
-- PDF du rapport d'ingénierie : [Consulter le rapport EauSûre]([https://1drv.ms/b/c/14e06c77a7dac468/IQCNwBGUbkDMTaTTdn0Hem94AVIdE5QvMWrk3accX1DUpic?e=Vb73pf])
+- PDF du rapport d'ingénierie : [Consulter le rapport EauSûre](https://1drv.ms/b/c/14e06c77a7dac468/IQCNwBGUbkDMTaTTdn0Hem94AVIdE5QvMWrk3accX1DUpic?e=Vb73pf)
 
 ## Architecture
 
 - **Terrain** : nœud de mesure + passerelle ;
 - **Communication** : LoRa, BLE, Wi-Fi, MQTT, HTTPS ;
 - **Cloud** : APIs spécialisées, base de données, stockage firmware ;
-- **Clients** : application mobile et portail web administrateur.
+- **Clients** : application mobile et portail web administrateur.      
 
 ## Stack
 
